@@ -1,0 +1,65 @@
+# Python-related files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+.env
+.venv
+*.egg
+*.egg-info/
+dist/
+build/
+*.egg-info/
+
+# Node.js-related files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+
+# Environment files
+.env
+
+# SQLite database
+*.sqlite3
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Tailwind CSS
+*.css.map
+
+# Firebase Admin SDK service account keys (NEVER commit these!)
+*firebase-adminsdk*.json
+ragchatbot-*-firebase-adminsdk-*.json
+backend/*firebase-adminsdk*.json
+.ragchatbot-fd942-firebase-adminsdk-fbsvc-0812081e57.json

@@ -1,0 +1,39 @@
+# Python cache & virtual environment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+
+# Git & editor files
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Environment & secrets (VERY IMPORTANT)
+.env
+ragchatbot-fd942-firebase-adminsdk-*.json
+
+# Local databases & vector stores (DO NOT bake into image)
+chroma_db/
+chroma_db_users/
+rag_chatbot.db
+
+# Uploaded files & storage
+uploads/
+storage/
+
+# Evaluation & local artifacts
+evaluation_results_local.json
+test-simple.pdf
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node / frontend (if any)
+node_modules/
