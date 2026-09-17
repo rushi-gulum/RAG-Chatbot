@@ -263,7 +263,7 @@ button { cursor: pointer; }
     height: 100dvh;
     min-height: 100vh;
     flex-basis: auto;
-    padding: 20px 18px 18px;
+    padding: 76px 18px 18px;  /* Add top padding for mobile header */
     border-right: 1px solid var(--line);
     background: var(--panel);
     box-shadow: 4px 0 24px rgba(32, 35, 33, 0.12);
@@ -659,7 +659,7 @@ button { cursor: pointer; }
     height: 100vh;
     height: 100dvh;
     margin: 0;
-    padding: 20px 18px 18px;
+    padding: 76px 18px 18px;  /* Add top padding for mobile header */
     border: 0;
     border-left: 1px solid var(--line);
     border-radius: 0;
@@ -800,6 +800,13 @@ button { cursor: pointer; }
     font-size: 12px;
     padding: 12px 14px;
     bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  
+  /* Login modal adjustments for mobile */
+  .login-modal {
+    width: min(92vw, 420px);
+    max-height: 85vh;
+    overflow-y: auto;
   }
 }
 
@@ -982,4 +989,144 @@ button { cursor: pointer; }
   .composer-wrap {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
+}
+
+
+/* ============================================ */
+/* Login Modal Styles */
+/* ============================================ */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(32, 35, 33, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  animation: fadeIn 0.2s ease;
+}
+
+.login-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 92vw);
+  max-height: 85vh;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 24px 48px rgba(32, 35, 33, 0.2);
+  z-index: 201;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+}
+
+.login-modal h2 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+
+.login-modal p {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.google-sign-in-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 52px;
+  padding: 0 20px;
+  border: 1px solid #dadce0;
+  border-radius: 12px;
+  background: white;
+  color: #3c4043;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(32, 35, 33, 0.08);
+}
+
+.google-sign-in-button:hover {
+  background: #f8f9fa;
+  border-color: #d2d4d6;
+  box-shadow: 0 4px 12px rgba(32, 35, 33, 0.12);
+}
+
+.google-sign-in-button:active {
+  transform: scale(0.98);
+}
+
+.modal-features {
+  display: grid;
+  gap: 14px;
+  margin: 28px 0;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #5a5f58;
+  font-size: 13px;
+}
+
+.feature-item svg {
+  flex-shrink: 0;
+  color: var(--coral);
+}
+
+.skip-button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.skip-button:hover {
+  color: var(--ink);
+  background: #f0f1e9;
 }
