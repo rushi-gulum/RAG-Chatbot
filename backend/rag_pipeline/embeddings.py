@@ -1,400 +1,148 @@
-import numpy as np
-import torch
-from transformers import AutoTokenizer, AutoModel
-from typing import List, Dict, Any, Optional
-import logging
-from datetime import datetime
-import json
+"""Embedding generation using Cloudflare Workers AI."""
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+import logging
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import requests
+
 logger = logging.getLogger(__name__)
+DEFAULT_MODEL = "@cf/baai/bge-small-en-v1.5"
+
 
 class EmbeddingGenerator:
-    def __init__(self, model_name: str = "intfloat/e5-small", device: Optional[str] = None):
-        """
-        Initialize embedding generator with E5-small model
-        
-        Args:
-            model_name: Hugging Face model name (default: intfloat/e5-small)
-            device: Device to run model on ('cuda', 'cpu', or None for auto-detect)
-        """
-        self.model_name = model_name
-        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        logger.info(f"Initializing embedding model: {model_name}")
-        logger.info(f"Using device: {self.device}")
-        
-        # Load tokenizer and model
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModel.from_pretrained(model_name)
-            self.model.to(self.device)
-            self.model.eval()  # Set to evaluation mode
-            
-            # Get model dimensions
-            self.embedding_dim = self.model.config.hidden_size
-            logger.info(f"Model loaded successfully. Embedding dimension: {self.embedding_dim}")
-            
-        except Exception as e:
-            logger.error(f"Failed to load model {model_name}: {str(e)}")
-            raise
+    """Generate normalized 384-dimensional embeddings through Cloudflare."""
 
-    def _prepare_text_for_e5(self, text: str, prefix: str = "passage: ") -> str:
-        """
-        Prepare text for E5 model with appropriate prefix
-        
-        Args:
-            text: Input text
-            prefix: Prefix for E5 model ("passage: " for documents, "query: " for queries)
-            
-        Returns:
-            Formatted text with prefix
-        """
-        # Clean text to remove excessive whitespace
-        cleaned_text = " ".join(text.strip().split())
-        return prefix + cleaned_text
+    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None):
+        self.provider = os.getenv("EMBEDDING_PROVIDER", "cloudflare").lower()
+        self.model_name = model_name or os.getenv("EMBEDDING_MODEL", DEFAULT_MODEL)
+        self.embedding_dim = 384
+        self.device = device
+        self.batch_size = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
+        self.timeout = int(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "60"))
 
-    def _mean_pooling(self, model_output, attention_mask):
-        """
-        Apply mean pooling to get sentence embeddings
-        
-        Args:
-            model_output: Model output from transformer
-            attention_mask: Attention mask from tokenizer
-            
-        Returns:
-            Mean pooled embeddings
-        """
-        token_embeddings = model_output[0]  # First element contains token embeddings
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+        if self.provider != "cloudflare":
+            raise ValueError("Set EMBEDDING_PROVIDER=cloudflare.")
+        self.account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+        self.api_token = os.getenv("CLOUDFLARE_API_TOKEN")
+        if not self.account_id or not self.api_token:
+            raise ValueError(
+                "Cloudflare embeddings require CLOUDFLARE_ACCOUNT_ID and "
+                "CLOUDFLARE_API_TOKEN."
+            )
+        self.url = (
+            "https://api.cloudflare.com/client/v4/"
+            f"accounts/{self.account_id}/ai/run/{self.model_name}"
+        )
+        logger.info("Using hosted embedding model: %s", self.model_name)
 
-    def generate_embeddings(self, texts: List[str], batch_size: int = 16, normalize: bool = True) -> np.ndarray:
-        """
-        Generate embeddings for a list of texts
-        
-        Args:
-            texts: List of text strings to embed
-            batch_size: Batch size for processing
-            normalize: Whether to normalize embeddings
-            
-        Returns:
-            Numpy array of embeddings (shape: [num_texts, embedding_dim])
-        """
+    def generate_embeddings(
+        self,
+        texts: List[str],
+        batch_size: Optional[int] = None,
+        normalize: bool = True,
+    ) -> np.ndarray:
         if not texts:
-            return np.array([])
-        
-        logger.info(f"Generating embeddings for {len(texts)} texts...")
-        
-        # Prepare texts with E5 prefix
-        prepared_texts = [self._prepare_text_for_e5(text) for text in texts]
-        
-        all_embeddings = []
-        
-        # Process in batches
-        for i in range(0, len(prepared_texts), batch_size):
-            batch_texts = prepared_texts[i:i + batch_size]
-            
-            try:
-                # Tokenize batch
-                encoded_input = self.tokenizer(
-                    batch_texts,
-                    padding=True,
-                    truncation=True,
-                    max_length=512,  # E5-small max length
-                    return_tensors='pt'
-                ).to(self.device)
-                
-                # Generate embeddings
-                with torch.no_grad():
-                    model_output = self.model(**encoded_input)
-                    embeddings = self._mean_pooling(model_output, encoded_input['attention_mask'])
-                    
-                    # Normalize embeddings if requested
-                    if normalize:
-                        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
-                    
-                    # Move to CPU and convert to numpy
-                    batch_embeddings = embeddings.cpu().numpy()
-                    all_embeddings.append(batch_embeddings)
-                    
-                logger.info(f"Processed batch {i//batch_size + 1}/{(len(prepared_texts) + batch_size - 1)//batch_size}")
-                    
-            except Exception as e:
-                logger.error(f"Error processing batch {i//batch_size + 1}: {str(e)}")
-                raise
-        
-        # Concatenate all batches
-        final_embeddings = np.vstack(all_embeddings) if all_embeddings else np.array([])
-        
-        logger.info(f"Generated embeddings shape: {final_embeddings.shape}")
-        return final_embeddings
+            return np.array([], dtype=np.float32)
+
+        size = batch_size or self.batch_size
+        batches: List[np.ndarray] = []
+        for start in range(0, len(texts), size):
+            batch = [text.strip() for text in texts[start:start + size]]
+            response = requests.post(
+                self.url,
+                headers={
+                    "Authorization": f"Bearer {self.api_token}",
+                    "Content-Type": "application/json",
+                },
+                json={"text": batch},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get("success") is False:
+                raise RuntimeError(f"Cloudflare embedding failed: {payload.get('errors')}")
+            result = payload.get("result", {})
+            vectors = result.get("data") if isinstance(result, dict) else result
+            embeddings = np.asarray(vectors, dtype=np.float32)
+            if embeddings.ndim != 2 or embeddings.shape[1] != self.embedding_dim:
+                raise ValueError(
+                    f"Expected {self.embedding_dim}-dimensional embeddings, "
+                    f"received shape {embeddings.shape}."
+                )
+            if normalize:
+                norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+                embeddings = embeddings / np.maximum(norms, 1e-12)
+            batches.append(embeddings)
+        return np.vstack(batches)
 
     def embed_chunks(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Generate embeddings for processed document chunks from preprocessing module
-        
-        Args:
-            chunks: List of chunk dictionaries from DocumentProcessor.process_document()
-                   Format: [{"text": "...", "metadata": {...}}, ...]
-            
-        Returns:
-            List of chunks with embeddings added to each chunk
-        """
         if not chunks:
-            logger.warning("No chunks provided for embedding")
             return []
-        
-        logger.info(f"Embedding {len(chunks)} chunks...")
-        
-        # Extract texts from chunks
-        texts = []
-        valid_indices = []
-        
-        for i, chunk in enumerate(chunks):
+        texts: List[str] = []
+        valid_indices: List[int] = []
+        for index, chunk in enumerate(chunks):
             text = chunk.get("text", "").strip()
             if text:
                 texts.append(text)
-                valid_indices.append(i)
-            else:
-                logger.warning(f"Chunk {i} has empty or missing text")
-        
+                valid_indices.append(index)
         if not texts:
-            logger.warning("No valid texts found in chunks")
             return chunks
-        
-        # Generate embeddings
-        try:
-            embeddings = self.generate_embeddings(texts)
-            
-            # Create new list with embedded chunks
-            embedded_chunks = []
-            embedding_idx = 0
-            
-            for i, chunk in enumerate(chunks):
-                # Create a copy of the chunk
-                chunk_copy = chunk.copy()
-                chunk_copy["metadata"] = chunk["metadata"].copy()
-                
-                if i in valid_indices:
-                    # Add embedding to chunk
-                    chunk_copy["embedding"] = embeddings[embedding_idx].tolist()
-                    
-                    # Add embedding metadata
-                    chunk_copy["metadata"]["embedding_model"] = self.model_name
-                    chunk_copy["metadata"]["embedding_dim"] = self.embedding_dim
-                    chunk_copy["metadata"]["embedded_at"] = datetime.now().isoformat()
-                    chunk_copy["metadata"]["embedding_status"] = "success"
-                    
-                    embedding_idx += 1
-                    logger.debug(f"Successfully embedded chunk {i} (chunk_id: {chunk_copy['metadata'].get('chunk_id', 'unknown')})")
-                else:
-                    # Mark as failed embedding
-                    chunk_copy["embedding"] = None
-                    chunk_copy["metadata"]["embedding_status"] = "failed"
-                    chunk_copy["metadata"]["embedding_error"] = "Empty or invalid text"
-                
-                embedded_chunks.append(chunk_copy)
-            
-            logger.info(f"Successfully embedded {len(valid_indices)} out of {len(chunks)} chunks")
-            return embedded_chunks
-            
-        except Exception as e:
-            logger.error(f"Failed to generate embeddings: {str(e)}")
-            raise
+
+        embeddings = self.generate_embeddings(texts)
+        valid_index_set = set(valid_indices)
+        embedded_chunks: List[Dict[str, Any]] = []
+        embedding_index = 0
+        for index, chunk in enumerate(chunks):
+            copy = chunk.copy()
+            copy["metadata"] = chunk.get("metadata", {}).copy()
+            if index in valid_index_set:
+                copy["embedding"] = embeddings[embedding_index].tolist()
+                copy["metadata"].update({
+                    "embedding_model": self.model_name,
+                    "embedding_dim": self.embedding_dim,
+                    "embedded_at": datetime.now().isoformat(),
+                    "embedding_status": "success",
+                })
+                embedding_index += 1
+            else:
+                copy["embedding"] = None
+                copy["metadata"].update({
+                    "embedding_status": "failed",
+                    "embedding_error": "Empty or invalid text",
+                })
+            embedded_chunks.append(copy)
+        return embedded_chunks
 
     def embed_query(self, query: str) -> np.ndarray:
-        """
-        Generate embedding for a search query
-        
-        Args:
-            query: Search query text
-            
-        Returns:
-            Query embedding as numpy array
-        """
         if not query.strip():
             raise ValueError("Query cannot be empty")
-        
-        # Prepare query with E5 prefix for queries
-        prepared_query = self._prepare_text_for_e5(query, prefix="query: ")
-        
-        try:
-            # Tokenize
-            encoded_input = self.tokenizer(
-                prepared_query,
-                padding=True,
-                truncation=True,
-                max_length=512,
-                return_tensors='pt'
-            ).to(self.device)
-            
-            # Generate embedding
-            with torch.no_grad():
-                model_output = self.model(**encoded_input)
-                embedding = self._mean_pooling(model_output, encoded_input['attention_mask'])
-                
-                # Normalize
-                embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)
-                
-                # Convert to numpy
-                query_embedding = embedding.cpu().numpy().flatten()
-            
-            logger.info(f"Generated query embedding with shape: {query_embedding.shape}")
-            return query_embedding
-            
-        except Exception as e:
-            logger.error(f"Failed to embed query: {str(e)}")
-            raise
+        return self.generate_embeddings([query])[0]
 
     def compute_similarity(self, query_embedding: np.ndarray, chunk_embeddings: np.ndarray) -> np.ndarray:
-        """
-        Compute cosine similarity between query and chunk embeddings
-        
-        Args:
-            query_embedding: Query embedding vector
-            chunk_embeddings: Array of chunk embeddings
-            
-        Returns:
-            Array of similarity scores
-        """
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)
-        
-        # Compute cosine similarity
-        similarities = np.dot(chunk_embeddings, query_embedding.T).flatten()
-        return similarities
+        return np.dot(chunk_embeddings, query_embedding.T).flatten()
 
     def get_embeddings_from_chunks(self, embedded_chunks: List[Dict[str, Any]]) -> np.ndarray:
-        """
-        Extract embedding vectors from embedded chunks
-        
-        Args:
-            embedded_chunks: List of chunks with embeddings
-            
-        Returns:
-            Numpy array of embeddings
-        """
-        embeddings = []
-        for chunk in embedded_chunks:
-            if chunk.get("embedding") is not None:
-                embeddings.append(chunk["embedding"])
-        
-        return np.array(embeddings) if embeddings else np.array([])
+        embeddings = [chunk["embedding"] for chunk in embedded_chunks if chunk.get("embedding") is not None]
+        return np.asarray(embeddings, dtype=np.float32) if embeddings else np.array([], dtype=np.float32)
 
     def search_similar_chunks(self, query: str, embedded_chunks: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search for most similar chunks to a query
-        
-        Args:
-            query: Search query
-            embedded_chunks: List of chunks with embeddings
-            top_k: Number of top results to return
-            
-        Returns:
-            List of top-k most similar chunks with similarity scores
-        """
-        # Get query embedding
-        query_embedding = self.embed_query(query)
-        
-        # Get chunk embeddings
         chunk_embeddings = self.get_embeddings_from_chunks(embedded_chunks)
-        
         if len(chunk_embeddings) == 0:
-            logger.warning("No valid embeddings found in chunks")
             return []
-        
-        # Compute similarities
-        similarities = self.compute_similarity(query_embedding, chunk_embeddings)
-        
-        # Get top-k indices
-        top_indices = np.argsort(similarities)[::-1][:top_k]
-        
-        # Create result list with similarity scores
+        similarities = self.compute_similarity(self.embed_query(query), chunk_embeddings)
+        top_indices = set(np.argsort(similarities)[::-1][:top_k].tolist())
         results = []
-        valid_chunk_idx = 0
-        
-        for chunk_idx, chunk in enumerate(embedded_chunks):
+        valid_index = 0
+        for chunk in embedded_chunks:
             if chunk.get("embedding") is not None:
-                if valid_chunk_idx in top_indices:
-                    chunk_copy = chunk.copy()
-                    chunk_copy["similarity_score"] = float(similarities[valid_chunk_idx])
-                    results.append(chunk_copy)
-                valid_chunk_idx += 1
-        
-        # Sort by similarity score
-        results.sort(key=lambda x: x["similarity_score"], reverse=True)
-        
-        logger.info(f"Found {len(results)} similar chunks for query: '{query[:50]}...'")
-        return results
-
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get information about the embedding model
-        
-        Returns:
-            Dictionary with model information
-        """
-        return {
-            "model_name": self.model_name,
-            "embedding_dimension": self.embedding_dim,
-            "device": self.device,
-            "max_sequence_length": 512,
-            "model_type": "e5-small",
-            "normalization": True,
-            "prefix_passage": "passage: ",
-            "prefix_query": "query: "
-        }
-
-# Test function for integration
-def test_embedding_with_preprocessing():
-    """
-    Test function to demonstrate integration between preprocessing and embedding modules
-    """
-    from preprocessing import DocumentProcessor
-    import uuid
-    
-    # Initialize both processors
-    doc_processor = DocumentProcessor()
-    embedder = EmbeddingGenerator()
-    
-    # Test with your exact file structure
-    file_path = "uploads/mem.pdf"
-    file_id = str(uuid.uuid4())
-    filename = "mem.pdf"
-    
-    try:
-        # Step 1: Process document into chunks
-        print("Step 1: Processing document into chunks...")
-        chunks = doc_processor.process_document(file_path, file_id, filename)
-        print(f"Generated {len(chunks)} chunks")
-        
-        # Step 2: Embed chunks
-        print("Step 2: Generating embeddings for chunks...")
-        embedded_chunks = embedder.embed_chunks(chunks)
-        print(f"Embedded {len(embedded_chunks)} chunks")
-        print(embedded_chunks[0])  # Print first embedded chunk for verification
-        
-        # Step 3: Test search
-        print("Step 3: Testing search functionality...")
-        query = "artificial intelligence"
-        similar_chunks = embedder.search_similar_chunks(query, embedded_chunks, top_k=3)
-        
-        print(f"\nQuery: '{query}'")
-        print(f"Found {len(similar_chunks)} similar chunks:")
-        
-        for i, chunk in enumerate(similar_chunks):
-            print(f"\nRank {i+1} (Similarity: {chunk['similarity_score']:.4f}):")
-            print(f"Chunk ID: {chunk['metadata']['chunk_id']}")
-            print(f"Preview: {chunk['text'][:100]}...")
-        
-        return embedded_chunks
-        
-    except Exception as e:
-        print(f"Error in test: {e}")
-        return None
-
-if __name__ == "__main__":
-    # Run the integration test
-    embedded_chunks = test_embedding_with_preprocessing()
+                if valid_index in top_indices:
+                    copy = chunk.copy()
+                    copy["similarity_score"] = float(similarities[valid_index])
+                    results.append(copy)
+                valid_index += 1
+        return sorted(results, key=lambda item: item["similarity_score"], reverse=True)

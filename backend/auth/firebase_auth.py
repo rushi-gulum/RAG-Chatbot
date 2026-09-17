@@ -8,7 +8,7 @@ from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 import dotenv
-dotenv.load_dotenv()  # Load environment variables
+dotenv.load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 # Import Firebase Admin (gracefully handle if not installed)
 try:
     import firebase_admin
@@ -19,6 +19,9 @@ except ImportError:
     logging.warning("Firebase Admin SDK not installed. Authentication will be disabled.")
 
 logger = logging.getLogger(__name__)
+
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPOSITORY_DIR = os.path.dirname(BACKEND_DIR)
 
 class FirebaseAuth:
     """Firebase Authentication Handler"""
@@ -43,9 +46,29 @@ class FirebaseAuth:
                 return
             
             # Get service account key path from environment
-            service_key_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY")
+            configured_key_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY")
+            service_key_path = None
+            if configured_key_path:
+                key_path = os.path.expanduser(configured_key_path)
+                candidate_paths = [
+                    key_path,
+                    os.path.join(os.getcwd(), key_path),
+                    os.path.join(BACKEND_DIR, key_path),
+                    os.path.join(REPOSITORY_DIR, key_path),
+                ] if not os.path.isabs(key_path) else [key_path]
+                service_key_path = next(
+                    (path for path in candidate_paths if os.path.isfile(path)),
+                    None,
+                )
             
-            if service_key_path and os.path.exists(service_key_path):
+            service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+            if service_account_json:
+                cred = credentials.Certificate(json.loads(service_account_json))
+                self.app = firebase_admin.initialize_app(cred)
+                self.enabled = True
+                logger.info("Firebase initialized with service account JSON")
+            elif service_key_path and os.path.exists(service_key_path):
                 # Initialize with service account file
                 cred = credentials.Certificate(service_key_path)
                 self.app = firebase_admin.initialize_app(cred)
@@ -167,6 +190,24 @@ async def require_auth(user: Optional[Dict[str, Any]] = Depends(get_current_user
     Raises:
         HTTPException: If user is not authenticated
     """
+    if user:
+        return user
+
+    # Allow local development without Firebase only when explicitly enabled.
+    auth_disabled = os.getenv("AUTH_DISABLED", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if auth_disabled:
+        return {
+            "uid": os.getenv("AUTH_DEV_USER_ID", "local-development-user"),
+            "email": "local-development@example.invalid",
+            "email_verified": True,
+            "name": "Local Development User",
+        }
+
     if not user:
         raise HTTPException(
             status_code=401,

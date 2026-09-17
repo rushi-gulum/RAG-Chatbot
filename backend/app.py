@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime
 
@@ -40,17 +41,22 @@ except ImportError:
     rag_router = None
     rag_available = False
 
-app = FastAPI(title="RAG Chatbot Backend", version="1.0.0") # pyright: ignore[reportUnknownVariableType]
-
-# Initialize database on startup
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
         init_database()
         print("Database initialized successfully!")
     except Exception as e:
         print(f"Failed to initialize database: {e}")
         # Don't stop the app, just log the error
+    yield
+
+
+app = FastAPI(
+    title="RAG Chatbot Backend",
+    version="1.0.0",
+    lifespan=lifespan,
+) # pyright: ignore[reportUnknownVariableType]
 
 # Enable CORS for frontend communication
 allowed_origins = [
@@ -64,6 +70,12 @@ allowed_origins = [
 # Add production origin if configured
 if os.getenv("FRONTEND_URL"):
     allowed_origins.append(os.getenv("FRONTEND_URL"))
+if os.getenv("ALLOWED_ORIGINS"):
+    allowed_origins.extend(
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    )
 
 # For development, allow all origins with devtunnels pattern
 if os.getenv("NODE_ENV") != "production":
@@ -71,7 +83,7 @@ if os.getenv("NODE_ENV") != "production":
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if os.getenv("NODE_ENV") != "production" else allowed_origins,
+    allow_origins=allowed_origins if os.getenv("NODE_ENV") == "production" else ["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

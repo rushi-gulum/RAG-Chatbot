@@ -27,7 +27,12 @@ async def upload_pdf(
         from routes.rag import process_document_complete
         
         # Use the existing RAG pipeline for processing
-        result = await process_document_complete(file=file, document_id=None, db=db)
+        result = await process_document_complete(
+            file=file,
+            document_id=None,
+            db=db,
+            current_user=current_user,
+        )
         
         return JSONResponse(
             status_code=200,

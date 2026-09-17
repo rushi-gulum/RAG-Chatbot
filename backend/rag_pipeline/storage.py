@@ -1,4 +1,5 @@
 import chromadb
+import os
 from chromadb.config import Settings
 import numpy as np
 from typing import List, Dict, Any, Optional, Union
@@ -38,15 +39,22 @@ class VectorStore:
         logger.info(f"Collection name: {collection_name}")
         
         try:
-            # Initialize ChromaDB client with persistence
-            self.client = chromadb.PersistentClient(
-                path=str(self.persist_directory),
-                settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True,
-                    is_persistent=True
+            if os.getenv("CHROMA_MODE", "local").lower() == "cloud":
+                self.client = chromadb.CloudClient(
+                    api_key=os.environ["CHROMA_API_KEY"],
+                    tenant=os.environ["CHROMA_TENANT"],
+                    database=os.environ["CHROMA_DATABASE"],
                 )
-            )
+                logger.info("Using Chroma Cloud")
+            else:
+                self.client = chromadb.PersistentClient(
+                    path=str(self.persist_directory),
+                    settings=Settings(
+                        anonymized_telemetry=False,
+                        allow_reset=True,
+                        is_persistent=True
+                    )
+                )
             
             # Create or get collection
             self.collection = self.client.get_or_create_collection(

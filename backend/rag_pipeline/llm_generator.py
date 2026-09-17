@@ -23,7 +23,7 @@ class LLMGenerator:
     def __init__(
         self, 
         api_key: Optional[str] = None,
-        model_name: str = "llama-3.1-8b-instant",
+        model_name: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.7
     ):
@@ -36,7 +36,7 @@ class LLMGenerator:
             max_tokens: Maximum tokens in response
             temperature: Response creativity (0.0 = deterministic, 1.0 = creative)
         """
-        self.model_name = model_name
+        self.model_name = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
         self.max_tokens = max_tokens
         self.temperature = temperature
         
@@ -50,7 +50,7 @@ class LLMGenerator:
         try:
             # Initialize Groq client
             self.client = Groq(api_key=self.api_key)
-            logger.info(f"Groq LLM initialized successfully with model: {model_name}")
+            logger.info(f"Groq LLM initialized successfully with model: {self.model_name}")
             
             # Test the connection
             self._test_connection()
@@ -244,12 +244,11 @@ CITATION RULES:
 - ONLY cite sources that you actually reference in your answer
 
 FORMAT YOUR RESPONSE:
-- **Direct Answer**: Short, to-the-point definition/answer with citations [1], [2], etc.
-- **Explanation**: 
-   • Use bullet points or numbered lists for clarity with appropriate citations
-   • Highlight important terms in **bold**
-   • Keep it concise but informative
-   • Add citations [1], [2], etc. after statements that reference specific sources
+- Start with a short, direct answer and then add supporting detail when useful.
+- Use bullet points or numbered lists for clarity with appropriate citations.
+- Highlight important terms in **bold**.
+- Keep it concise but informative.
+- Add citations [1], [2], etc. after statements that reference specific sources.
 - If no relevant info found, state "No relevant info found in uploaded documents. Answer provided from general knowledge."
 
 STYLE:
