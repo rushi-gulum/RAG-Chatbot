@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowUp, BookOpen, Check, ChevronDown, FileText,
+  ArrowUp, BookOpen, Check, ChevronDown, Copy, CopyCheck, FileText,
   LoaderCircle, LogOut, Menu, MessageSquare, MoreHorizontal,
   Paperclip, PanelRightOpen, Pencil, Plus, Search, ShieldCheck,
   Sparkles, Trash2, UploadCloud, Download, X,
@@ -65,6 +65,7 @@ export default function Home() {
   const [renamingId, setRenamingId] = useState<string | null>(null);       // session_id being renamed
   const [renameValue, setRenameValue] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null); // session_id pending delete confirm
+  const [copiedId, setCopiedId] = useState<string | null>(null);              // message_id that was just copied
   const fileInput = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +116,13 @@ export default function Home() {
 
   const handleSignOut = () => {
     if (firebaseAuth) signOut(firebaseAuth);
+  };
+
+  const handleCopy = (messageId: string, content: string) => {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopiedId(messageId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
   };
 
   const handleSignIn = async () => {
@@ -628,7 +636,41 @@ export default function Home() {
         <div className={`content-grid ${libraryOpen ? "" : "library-hidden"}`}>
           <section className={`chat-column ${messages.length > 0 ? "has-messages" : ""}`}>
             <div className="conversation-scroll"><div className="chat-intro"><h2>Ask your library.<br /><em>See the whole picture.</em></h2></div>
-            {messages.length > 0 && <div className="message-list">{messages.map((message) => <article className={`message ${message.type}`} key={message.id}><div className="message-label">{message.type === "user" ? "You" : "vw-brain AI"}</div><div className="message-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div>{message.sources && message.sources.length > 0 && <div className="source-row">{message.sources.slice(0, 3).map((source, index) => <span className="source-pill" key={`${source.filename}-${index}`}><FileText size={13} />{source.filename || "Document"}<b>[{index + 1}]</b></span>)}</div>}</article>)}</div>}
+            {messages.length > 0 && <div className="message-list">{messages.map((message) => <article className={`message ${message.type}`} key={message.id}>
+                      <div className="message-header">
+                        <div className="message-label">{message.type === "user" ? "You" : "vw-brain AI"}</div>
+                        {message.type === "assistant" && (
+                          <button
+                            className={`copy-btn${copiedId === message.id ? " copy-btn--done" : ""}`}
+                            aria-label="Copy reply"
+                            onClick={() => handleCopy(message.id, message.content)}
+                          >
+                            {copiedId === message.id ? <><CopyCheck size={12} />Copied</> : <><Copy size={12} />Copy</>}
+                          </button>
+                        )}
+                      </div>
+                      <div className="message-content">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            table: ({ children, ...props }) => (
+                              <div className="table-scroll-wrapper">
+                                <table {...props}>{children}</table>
+                              </div>
+                            ),
+                          }}
+                        >{message.content}</ReactMarkdown>
+                      </div>
+                      {message.sources && message.sources.length > 0 && (
+                        <div className="source-row">
+                          {message.sources.slice(0, 3).map((source, index) => (
+                            <span className="source-pill" key={`${source.filename}-${index}`}>
+                              <FileText size={13} />{source.filename || "Document"}<b>[{index + 1}]</b>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </article>)}</div>}
             {busy && <div className="thinking"><LoaderCircle size={17} className="spin" /> Reading your library...</div>}</div>
             <div className="composer-wrap"><div className="selection-line"><span><Check size={14} /> {selectedDocuments.length ? `${selectedDocuments.length} document${selectedDocuments.length > 1 ? "s" : ""} selected` : "Searching all documents"}</span><button onClick={() => setSelectedDocuments([])}>Clear selection</button></div><div className="composer"><textarea value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitQuery(); } }} placeholder="Ask a question about your documents..." rows={2} /><div className="composer-tools"><button className="icon-button" aria-label="Attach document" onClick={handleAttachClick}><Paperclip size={18} /></button><span className="composer-hint">Shift + Enter for a new line</span><button className="send-button" aria-label="Send question" onClick={submitQuery} disabled={!query.trim() || busy}><ArrowUp size={18} /></button></div></div></div>
           </section>
