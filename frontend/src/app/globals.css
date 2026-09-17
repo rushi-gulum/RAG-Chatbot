@@ -30,6 +30,348 @@ button { cursor: pointer; }
 .document-list { overflow-x: hidden; }.document-card { display: grid; grid-template-columns: 31px minmax(0, 1fr) 18px 25px; gap: 8px; min-width: 0; overflow: hidden; }.document-copy { min-width: 0; overflow: hidden; }.document-copy strong, .document-copy small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.document-check, .delete-document { min-width: 0; }
 @keyframes lift-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } } @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 920px) { .sidebar { width: 210px; flex-basis: 210px; }.main-panel { padding: 0 22px 25px; }.content-grid { gap: 25px; grid-template-columns: minmax(0, 1fr) 285px; }.library-panel { padding: 17px; } }
-@media (max-width: 720px) { .workspace-shell { display: block; }.sidebar { width: 100%; min-height: auto; padding: 16px 17px; border-right: 0; border-bottom: 1px solid var(--line); }.brand-row { padding: 0 0 15px; }.sidebar-toggle { display: inline-grid !important; }.new-chat-button, .side-nav, .sidebar-section-label, .recent-list, .security-note { display: none; }.sidebar-footer { position: absolute; top: 11px; right: 16px; }.account-row { padding: 0; border: 0; }.account-copy, .account-row > .icon-button { display: none; }.main-panel { height: auto; overflow: visible; padding: 0 16px 18px; }.topbar { min-height: 83px; }.topbar h1 { font-size: 18px; }.topbar-actions { font-size: 9px; }.content-grid { display: flex; flex-direction: column; height: auto; min-height: 0; gap: 20px; }.chat-column { max-width: none; height: 70vh; padding: 39px 0 0; }.chat-intro h2 { font-size: 43px; }.chat-intro p { font-size: 13px; }.composer-wrap { padding-top: 30px; order: 2; }.library-panel { order: 1; margin: 26px 0 0; }.document-list { max-height: 220px; }.error-toast { right: 15px; bottom: 15px; left: 15px; max-width: none; } }
+
+/* Tablet optimization */
+@media (max-width: 920px) and (min-width: 721px) {
+  .composer textarea { font-size: 13px; }
+  .document-card { padding: 9px; }
+  .library-search input { font-size: 12px; }
+  
+  /* Better touch targets on tablet */
+  .icon-button, .send-button, .delete-document { 
+    min-width: 36px; 
+    min-height: 36px; 
+  }
+}
+
+/* Touch device improvements */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  .icon-button { 
+    width: 36px; 
+    height: 36px; 
+  }
+  
+  .send-button { 
+    width: 38px; 
+    height: 38px; 
+  }
+  
+  .document-card { 
+    padding: 12px 10px;
+  }
+  
+  .recent-item { 
+    padding: 11px 10px;
+  }
+  
+  /* Smooth scrolling */
+  .conversation-scroll, .document-list, .recent-list {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Remove hover effects on touch */
+  .icon-button:hover,
+  .document-card:hover,
+  .recent-item:hover,
+  .upload-zone:hover,
+  .delete-document:hover {
+    background: transparent;
+  }
+  
+  /* Active states for touch feedback */
+  .icon-button:active { 
+    background: #efefe8; 
+    transform: scale(0.95);
+  }
+  
+  .send-button:active { 
+    transform: scale(0.95); 
+  }
+  
+  .document-card:active { 
+    border-color: #e8cdc3; 
+    background: #fff3ee; 
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 380px) {
+  .brand-name { font-size: 15px; }
+  .chat-intro h2 { font-size: 28px; }
+  .composer textarea { font-size: 12px; }
+  .message { font-size: 11px; }
+  .document-copy strong { font-size: 9px; }
+  .document-copy small { font-size: 7px; }
+}
+
+/* Mobile landscape optimization */
+@media (max-width: 920px) and (max-height: 500px) and (orientation: landscape) {
+  .sidebar {
+    max-height: 90vh;
+  }
+  
+  .chat-column {
+    min-height: 40vh;
+  }
+  
+  .chat-intro h2 {
+    font-size: 32px;
+    margin: 12px 0 8px;
+  }
+  
+  .composer-wrap {
+    padding-top: 12px;
+  }
+  
+  .library-panel {
+    margin-bottom: 8px;
+  }
+  
+  .document-list {
+    max-height: 180px;
+  }
+}
+@media (max-width: 720px) { 
+  /* Mobile viewport handling */
+  .workspace-shell { display: block; height: 100vh; height: 100dvh; overflow: hidden; }
+  
+  /* Sidebar becomes collapsible header */
+  .sidebar { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    width: 100%; 
+    height: auto; 
+    min-height: auto; 
+    max-height: 80vh;
+    padding: 14px 16px; 
+    border-right: 0; 
+    border-bottom: 1px solid var(--line); 
+    background: rgba(255,254,250,.98);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    transition: transform .3s ease;
+    overflow-y: auto;
+  }
+  
+  /* Hide sidebar when closed on mobile */
+  .workspace-shell.sidebar-hidden .sidebar { 
+    transform: translateY(-100%); 
+    pointer-events: none;
+  }
+  
+  .brand-row { padding: 0 0 12px; gap: 7px; }
+  .brand-mark { width: 24px; height: 24px; }
+  .brand-name { font-size: 17px; }
+  
+  .sidebar-toggle { display: inline-grid !important; }
+  
+  /* Show conversation list on mobile */
+  .new-chat-button { 
+    display: flex; 
+    height: 38px; 
+    margin-bottom: 8px;
+  }
+  
+  .sidebar-section-label { 
+    display: block;
+    margin: 18px 10px 8px; 
+  }
+  
+  .recent-list { 
+    display: block;
+    max-height: 40vh;
+    overflow-y: auto;
+    margin-bottom: 12px;
+  }
+  
+  .recent-item { font-size: 11px; padding: 8px 10px; }
+  
+  /* Hide security note on mobile to save space */
+  .security-note { display: none; }
+  
+  .sidebar-footer { 
+    position: static;
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+  
+  .account-row { 
+    padding: 0; 
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  
+  .account-copy { display: block; }
+  .account-row > .icon-button { display: inline-grid; }
+  
+  /* Collapsed sidebar for mobile */
+  .collapsed-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 52px;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,254,250,.98);
+    backdrop-filter: blur(8px);
+    z-index: 99;
+  }
+  
+  /* Main panel adjusts for fixed header */
+  .main-panel { 
+    height: 100vh;
+    height: 100dvh;
+    overflow: auto; 
+    padding: 68px 14px 14px; 
+  }
+  
+  .workspace-shell.sidebar-hidden .main-panel {
+    padding-top: 68px;
+  }
+  
+  .library-restore, .sidebar-restore { 
+    top: 16px;
+    right: 16px;
+    left: auto;
+    background: rgba(255,254,250,.95);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  }
+  
+  .content-grid { 
+    display: flex; 
+    flex-direction: column-reverse; 
+    height: auto; 
+    min-height: calc(100vh - 82px);
+    gap: 16px; 
+    padding-bottom: 16px;
+  }
+  
+  .chat-column { 
+    max-width: none; 
+    height: auto;
+    min-height: 60vh;
+    padding: 24px 0 0; 
+  }
+  
+  .conversation-scroll {
+    max-height: none;
+    padding-right: 4px;
+  }
+  
+  .chat-intro h2 { font-size: clamp(32px, 8vw, 43px); }
+  .chat-intro p { font-size: 13px; max-width: 100%; }
+  
+  .message { 
+    max-width: 95%; 
+    padding: 12px 13px;
+    font-size: 12px;
+  }
+  
+  .message-content { font-size: 12px; }
+  .message-label { font-size: 8px; }
+  
+  .source-pill { 
+    font-size: 9px; 
+    padding: 4px 7px;
+    max-width: 150px;
+  }
+  
+  .composer-wrap { 
+    padding-top: 16px; 
+    order: 2; 
+  }
+  
+  .composer { 
+    padding: 11px 11px 8px; 
+    border-radius: 11px;
+  }
+  
+  .composer textarea { font-size: 13px; }
+  
+  .send-button { 
+    width: 32px; 
+    height: 32px; 
+  }
+  
+  /* Library panel on mobile */
+  .library-panel { 
+    order: 1; 
+    margin: 0 0 16px; 
+    padding: 16px; 
+    border-radius: 12px;
+  }
+  
+  .library-heading h3 { font-size: 17px; }
+  
+  .upload-zone { 
+    margin: 16px 0 14px; 
+    padding: 10px;
+    gap: 9px;
+  }
+  
+  .upload-icon { width: 30px; height: 30px; }
+  .upload-zone strong { font-size: 11px; }
+  .upload-zone small { font-size: 9px; }
+  
+  .library-search input { font-size: 12px; }
+  
+  .document-list { 
+    max-height: 240px; 
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .document-card { 
+    padding: 9px; 
+    gap: 8px;
+    grid-template-columns: 28px minmax(0, 1fr) 16px 23px;
+  }
+  
+  .pdf-icon { 
+    width: 28px; 
+    height: 32px; 
+  }
+  
+  .document-copy strong { font-size: 10px; }
+  .document-copy small { font-size: 8px; }
+  
+  .document-check { 
+    width: 16px; 
+    height: 16px; 
+  }
+  
+  .delete-document { 
+    width: 23px; 
+    height: 23px; 
+  }
+  
+  .library-footer { font-size: 8px; }
+  
+  /* Error toast mobile */
+  .error-toast { 
+    right: 12px; 
+    bottom: 12px; 
+    left: 12px; 
+    max-width: none; 
+    font-size: 11px;
+    padding: 10px 12px;
+  }
+  
+  /* Selection line mobile */
+  .selection-line { 
+    font-size: 8px; 
+    margin: 0 2px 6px;
+  }
+  
+  .selection-line button { font-size: 9px; }
+}
 .main-panel { padding-bottom: 0; }.chat-column { padding-bottom: 0; }
 .workspace-shell { height: 100dvh; min-height: 100dvh; }.main-panel { height: 100%; }.content-grid { height: 100%; }.chat-column { height: 100%; }
