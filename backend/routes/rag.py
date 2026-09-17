@@ -65,11 +65,32 @@ class CollectionStats(BaseModel):
 # Create router
 router = APIRouter(prefix="/rag", tags=["RAG Pipeline"])
 
-# Initialize RAG components (will be None if dependencies not installed)
-doc_processor = DocumentProcessor() if DocumentProcessor else None
-embedder = EmbeddingGenerator() if EmbeddingGenerator else None
-vector_store = VectorStore(persist_directory="./chroma_db") if VectorStore else None
-llm_generator = LLMGenerator() if LLMGenerator else None
+# Initialize RAG components lazily so a transient Qdrant connection failure
+# at import time does not crash the entire application on startup.
+doc_processor = None
+embedder = None
+vector_store = None
+llm_generator = None
+
+try:
+    doc_processor = DocumentProcessor() if DocumentProcessor else None
+except Exception as e:
+    logging.warning(f"DocumentProcessor init failed: {e}")
+
+try:
+    embedder = EmbeddingGenerator() if EmbeddingGenerator else None
+except Exception as e:
+    logging.warning(f"EmbeddingGenerator init failed: {e}")
+
+try:
+    vector_store = VectorStore() if VectorStore else None
+except Exception as e:
+    logging.warning(f"VectorStore init failed: {e}")
+
+try:
+    llm_generator = LLMGenerator() if LLMGenerator else None
+except Exception as e:
+    logging.warning(f"LLMGenerator init failed: {e}")
 
 @router.get("/status")
 async def get_rag_status():
@@ -460,28 +481,14 @@ async def clear_collection(current_user: dict = Depends(require_auth)):
     
     try:
         user_id = current_user["uid"]
-        
-        # Get all user documents first
-        collection = vector_store.collection
-        user_docs = collection.get(
-            where={"user_id": user_id},
-            include=["metadatas"]
-        )
-        
-        if not user_docs["ids"]:
-            return {"message": "No documents found for user", "deleted_count": 0}
-        
-        # Delete user documents
-        collection.delete(ids=user_docs["ids"])
-        
-        result = {
-            "status": "success",
-            "message": f"Cleared {len(user_docs['ids'])} chunks for user",
-            "deleted_count": len(user_docs["ids"])
-        }
-        
+
+        result = vector_store.clear_user_collection(user_id)
+
         if result["status"] == "error":
-            raise HTTPException(status_code=500, detail=result["message"])
+            raise HTTPException(
+                status_code=500,
+                detail=result["message"]
+            )
         
         return result
         

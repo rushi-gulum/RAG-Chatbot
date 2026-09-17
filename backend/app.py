@@ -6,16 +6,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from datetime import datetime
 
-# Configure paths for different environments
+# Ensure the uploads directory exists (temp storage for PDF processing)
 BASE_DIR = Path(__file__).parent
 UPLOADS_DIR = BASE_DIR / "uploads"
-CHROMA_DIR = BASE_DIR / "chroma_db"
-CHROMA_USERS_DIR = BASE_DIR / "chroma_db_users"
-
-# Ensure directories exist
 UPLOADS_DIR.mkdir(exist_ok=True)
-CHROMA_DIR.mkdir(exist_ok=True)
-CHROMA_USERS_DIR.mkdir(exist_ok=True)
 
 # Import authentication and security
 try:

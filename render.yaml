@@ -7,11 +7,62 @@ services:
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # ── Runtime ──────────────────────────────────────────────────────────────
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: NODE_ENV
         value: production
+
+      # ── Auth ─────────────────────────────────────────────────────────────────
+      # Must be "false" in production — local dev bypass only
       - key: AUTH_DISABLED
         value: "false"
-      - key: CHROMA_MODE
-        value: cloud
-      - key: PYTHON_VERSION
-        value: 3.11.9
+      # Firebase service-account JSON (complete single-line JSON) — set as secret
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+
+      # ── PostgreSQL (Supabase or Neon) ─────────────────────────────────────────
+      # Format: postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+
+      # ── Groq LLM ─────────────────────────────────────────────────────────────
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+
+      # ── Cloudflare Workers AI (embeddings) ────────────────────────────────────
+      - key: EMBEDDING_PROVIDER
+        value: cloudflare
+      - key: EMBEDDING_MODEL
+        value: "@cf/baai/bge-small-en-v1.5"
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: EMBEDDING_BATCH_SIZE
+        value: "32"
+      - key: EMBEDDING_TIMEOUT_SECONDS
+        value: "60"
+
+      # ── Qdrant Cloud (vector store) ───────────────────────────────────────────
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: rag_documents
+
+      # ── CORS ─────────────────────────────────────────────────────────────────
+      # Set both to your Vercel frontend URL, e.g. https://your-app.vercel.app
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+      # ── Security ─────────────────────────────────────────────────────────────
+      - key: SECRET_KEY
+        sync: false

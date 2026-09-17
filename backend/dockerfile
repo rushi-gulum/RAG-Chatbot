@@ -7,9 +7,12 @@ COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
 
-
 COPY . .
+
+# Create uploads directory for temporary PDF processing
+RUN mkdir -p uploads
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use shell form so $PORT is expanded at runtime (Render injects PORT)
+CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}

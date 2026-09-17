@@ -65,16 +65,22 @@ class ChatMessage(Base):
         return f"<ChatMessage(type='{self.message_type}', session='{self.session_id}')>"
 
 class DocumentChunk(Base):
-    """Track individual chunks created from documents"""
+    """Track individual chunks created from documents.
+
+    Note: FK references processed_documents.document_id (the UUID, which is
+    unique) rather than filename, which is not unique across users.
+    This table is not actively written by the current Qdrant-based pipeline
+    but is kept for future use.
+    """
     __tablename__ = "document_chunks"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    document_filename = Column(String, ForeignKey("processed_documents.filename"), nullable=False)
+    document_id = Column(String, ForeignKey("processed_documents.document_id"), nullable=True)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     page_number = Column(Integer, nullable=True)
-    embedding_id = Column(String, nullable=True)  # ChromaDB ID
+    embedding_id = Column(String, nullable=True)  # Qdrant point ID
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     def __repr__(self):
-        return f"<DocumentChunk(document='{self.document_filename}', chunk={self.chunk_index})>"
+        return f"<DocumentChunk(document_id='{self.document_id}', chunk={self.chunk_index})>"
