@@ -8,23 +8,23 @@ services:
     healthCheckPath: /health
     envVars:
       # ── Runtime ──────────────────────────────────────────────────────────────
+      # Python version is pinned via backend/.python-version file (3.11.9).
+      # The PYTHON_VERSION env var below is kept for visibility but the file
+      # takes precedence for Render's runtime selection.
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: NODE_ENV
         value: production
 
       # ── Auth ─────────────────────────────────────────────────────────────────
-      # Must be "false" in production — local dev bypass only
       - key: AUTH_DISABLED
         value: "false"
-      # Firebase service-account JSON (complete single-line JSON) — set as secret
       - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
 
-      # ── PostgreSQL (Supabase or Neon) ─────────────────────────────────────────
-      # Format: postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+      # ── PostgreSQL (Neon) ─────────────────────────────────────────────────────
       - key: DATABASE_URL
         sync: false
 
@@ -34,7 +34,7 @@ services:
       - key: GROQ_MODEL
         value: openai/gpt-oss-20b
 
-      # ── Cloudflare Workers AI (embeddings) ────────────────────────────────────
+      # ── Cloudflare Workers AI ─────────────────────────────────────────────────
       - key: EMBEDDING_PROVIDER
         value: cloudflare
       - key: EMBEDDING_MODEL
@@ -48,7 +48,7 @@ services:
       - key: EMBEDDING_TIMEOUT_SECONDS
         value: "60"
 
-      # ── Qdrant Cloud (vector store) ───────────────────────────────────────────
+      # ── Qdrant Cloud ──────────────────────────────────────────────────────────
       - key: QDRANT_URL
         sync: false
       - key: QDRANT_API_KEY
@@ -57,7 +57,6 @@ services:
         value: rag_documents
 
       # ── CORS ─────────────────────────────────────────────────────────────────
-      # Set both to your Vercel frontend URL, e.g. https://your-app.vercel.app
       - key: FRONTEND_URL
         sync: false
       - key: ALLOWED_ORIGINS
