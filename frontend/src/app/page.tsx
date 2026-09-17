@@ -193,11 +193,38 @@ export default function Home() {
     setError("");
     try {
       const data = await apiRequest(`/chat/sessions/${sessionId}/export`, {}, user);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+
+      // Format as human-readable plain text
+      const lines: string[] = [];
+      lines.push(`Conversation: ${data.title}`);
+      lines.push(`Exported:     ${new Date().toLocaleString()}`);
+      lines.push(`Created:      ${new Date(data.created_at).toLocaleString()}`);
+      lines.push(`Updated:      ${new Date(data.updated_at).toLocaleString()}`);
+      lines.push("");
+      lines.push("=".repeat(60));
+      lines.push("");
+      for (const msg of (data.messages || [])) {
+        const label = msg.type === "user" ? "You" : "vw-brain AI";
+        const ts = new Date(msg.timestamp).toLocaleString();
+        lines.push(`[${label}]  ${ts}`);
+        lines.push(msg.content);
+        if (msg.sources && msg.sources.length) {
+          lines.push("");
+          lines.push("Sources:");
+          msg.sources.forEach((src: { filename?: string; chunk_index?: number }, i: number) => {
+            lines.push(`  [${i + 1}] ${src.filename || "Document"}${src.chunk_index != null ? ` (chunk ${src.chunk_index})` : ""}`);
+          });
+        }
+        lines.push("");
+        lines.push("-".repeat(60));
+        lines.push("");
+      }
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_export.json`;
+      a.download = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_export.txt`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (requestError) {
@@ -569,7 +596,7 @@ export default function Home() {
                             <Pencil size={13} /> Rename
                           </button>
                           <button onClick={() => exportSession(session.session_id, session.title)}>
-                            <Download size={13} /> Export JSON
+                            <Download size={13} /> Export .txt
                           </button>
                           <button className="menu-danger" onClick={() => deleteSession(session.session_id)}>
                             <Trash2 size={13} /> Delete
@@ -599,7 +626,7 @@ export default function Home() {
       <section className="main-panel">
         {!libraryOpen && <button className="icon-button library-restore" aria-label="Show document library" onClick={toggleLibrary}><PanelRightOpen size={19} /></button>}
         <div className={`content-grid ${libraryOpen ? "" : "library-hidden"}`}>
-          <section className="chat-column">
+          <section className={`chat-column ${messages.length > 0 ? "has-messages" : ""}`}>
             <div className="conversation-scroll"><div className="chat-intro"><h2>Ask your library.<br /><em>See the whole picture.</em></h2></div>
             {messages.length > 0 && <div className="message-list">{messages.map((message) => <article className={`message ${message.type}`} key={message.id}><div className="message-label">{message.type === "user" ? "You" : "vw-brain AI"}</div><div className="message-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div>{message.sources && message.sources.length > 0 && <div className="source-row">{message.sources.slice(0, 3).map((source, index) => <span className="source-pill" key={`${source.filename}-${index}`}><FileText size={13} />{source.filename || "Document"}<b>[{index + 1}]</b></span>)}</div>}</article>)}</div>}
             {busy && <div className="thinking"><LoaderCircle size={17} className="spin" /> Reading your library...</div>}</div>
