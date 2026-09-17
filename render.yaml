@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: vw-brain-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_DISABLED
+        value: "false"
+      - key: CHROMA_MODE
+        value: cloud
+      - key: PYTHON_VERSION
+        value: 3.11.9
