@@ -48,6 +48,10 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStep, setUploadStep] = useState<"reading" | "uploading" | "indexing" | "done" | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [authInitialized, setAuthInitialized] = useState(false);
@@ -86,15 +90,11 @@ export default function Home() {
       setUser(firebaseUser);
       setAuthInitialized(true);
       
-      // Show login modal on first visit if not authenticated
+      // Show login modal every time user opens/refreshes without authentication
       if (!firebaseUser && !LOCAL_AUTH_MODE) {
-        const hasSeenLogin = localStorage.getItem('hasSeenLoginModal');
-        if (!hasSeenLogin) {
-          setTimeout(() => {
-            setShowLoginModal(true);
-            localStorage.setItem('hasSeenLoginModal', 'true');
-          }, 1000); // Show after 1 second
-        }
+        setTimeout(() => {
+          setShowLoginModal(true);
+        }, 1000); // Show after 1 second
       }
     });
   }, []);
@@ -157,11 +157,48 @@ export default function Home() {
 
   const uploadDocument = async (file: File) => {
     if (file.type !== "application/pdf") { setError("Only PDF files can be added to the library."); return; }
-    setUploading(true); setError("");
-    const formData = new FormData(); formData.append("file", file);
-    try { await apiRequest("/documents/upload-pdf", { method: "POST", body: formData }, user); await loadDocuments(); }
-    catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Upload failed."); }
-    finally { setUploading(false); }
+
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadStep("reading");
+    setUploadSuccess(null);
+    setError("");
+
+    // Simulated progress: advances through stages while the real request runs
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => {
+        const next = prev + (prev < 30 ? 4 : prev < 60 ? 2.5 : prev < 80 ? 1.5 : prev < 90 ? 0.6 : 0);
+        currentProgress = next;
+        return next;
+      });
+      setUploadStep(currentProgress < 30 ? "reading" : currentProgress < 65 ? "uploading" : "indexing");
+    }, 120);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      await apiRequest("/documents/upload-pdf", { method: "POST", body: formData }, user);
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setUploadStep("done");
+      await loadDocuments();
+      // Show success flash, then reset
+      setUploadSuccess(file.name);
+      setTimeout(() => {
+        setUploadSuccess(null);
+        setUploadProgress(0);
+        setUploadStep(null);
+        setUploading(false);
+      }, 2200);
+    } catch (requestError) {
+      clearInterval(progressInterval);
+      setError(requestError instanceof Error ? requestError.message : "Upload failed.");
+      setUploadProgress(0);
+      setUploadStep(null);
+      setUploading(false);
+    }
   };
 
   const handleAttachClick = () => {
@@ -252,11 +289,16 @@ export default function Home() {
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeOverlays();
+      if (e.key === "Escape") {
+        // Don't close login modal with Escape
+        if (!showLoginModal) {
+          closeOverlays();
+        }
+      }
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, []);
+  }, [showLoginModal]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -276,16 +318,13 @@ export default function Home() {
       {/* Login Modal */}
       {showLoginModal && !LOCAL_AUTH_MODE && firebaseAuth && (
         <>
-          <div className="modal-backdrop" onClick={() => setShowLoginModal(false)} />
+          <div className="modal-backdrop" />
           <div className="login-modal">
             <div className="modal-header">
               <div className="brand-mark"><Sparkles size={22} strokeWidth={2.5} /></div>
-              <button className="icon-button modal-close" aria-label="Close" onClick={() => setShowLoginModal(false)}>
-                <X size={20} />
-              </button>
             </div>
             <h2>Welcome to vw-brain</h2>
-            <p>Sign in to access your private document library and start asking questions.</p>
+            <p>Sign in with your Google account to access your private document library and start asking questions.</p>
             <button className="google-sign-in-button" onClick={handleSignIn}>
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M17.64 9.20454C17.64 8.56636 17.5827 7.95272 17.4764 7.36363H9V10.845H13.8436C13.635 11.97 13.0009 12.9231 12.0477 13.5613V15.8195H14.9564C16.6582 14.2527 17.64 11.9454 17.64 9.20454Z" fill="#4285F4"/>
@@ -309,9 +348,6 @@ export default function Home() {
                 <span>Get AI-powered answers with citations</span>
               </div>
             </div>
-            <button className="skip-button" onClick={() => setShowLoginModal(false)}>
-              Continue without signing in
-            </button>
           </div>
         </>
       )}
@@ -335,7 +371,7 @@ export default function Home() {
         <button className="new-chat-button" onClick={startNewConversation}><Plus size={18} /> New conversation</button>
         <div className="sidebar-section-label recent-label">Recent conversations</div>
         <div className="recent-list">{sessions.length ? sessions.slice(0, 6).map((session) => <button className={`recent-item ${activeSessionId === session.session_id ? "active" : ""}`} key={session.session_id} onClick={() => openConversation(session.session_id)}><span>{session.title}</span><MoreHorizontal size={16} /></button>) : <p className="empty-sidebar">Your conversations will appear here.</p>}</div>
-        <div className="sidebar-footer"><div className="security-note"><ShieldCheck size={17} /><span><strong>Private by design</strong><small>Your documents stay in your workspace.</small></span></div><div className="account-row"><div className="avatar">{user?.email?.[0]?.toUpperCase() || "L"}</div><div className="account-copy"><strong>{user?.displayName || (LOCAL_AUTH_MODE ? "Local workspace" : "Firebase account")}</strong><small>{LOCAL_AUTH_MODE ? "Local development" : user?.email || "Not signed in"}</small></div>{user && firebaseAuth ? <button className="icon-button" aria-label="Sign out" onClick={handleSignOut}><LogOut size={16} /></button> : !LOCAL_AUTH_MODE && firebaseAuth ? <button className="sign-in-button" onClick={handleSignIn}>Sign in</button> : null}</div></div>
+        <div className="sidebar-footer"><div className="security-note"><ShieldCheck size={17} /><span><strong>Private by design</strong><small>Your documents stay in your workspace.</small></span></div><div className="account-row"><div className="avatar">{user?.email?.[0]?.toUpperCase() || "L"}</div><div className="account-copy"><strong>{user?.displayName || (LOCAL_AUTH_MODE ? "Local workspace" : "Google Account")}</strong><small>{LOCAL_AUTH_MODE ? "Local development" : user?.email || "Not signed in"}</small></div>{user && firebaseAuth ? <button className="icon-button" aria-label="Sign out" onClick={handleSignOut}><LogOut size={16} /></button> : !LOCAL_AUTH_MODE && firebaseAuth ? <button className="sign-in-button" onClick={handleSignIn}>Sign in</button> : null}</div></div>
       </aside>}
       {!sidebarOpen && <aside className="collapsed-sidebar" aria-label="Collapsed conversation sidebar"><button className="collapsed-rail-button" aria-label="Show conversation sidebar" onClick={toggleSidebar}><Menu size={19} /></button><button className="collapsed-rail-button" aria-label="New conversation" onClick={startNewConversation}><Plus size={20} /></button></aside>}
 
@@ -348,7 +384,68 @@ export default function Home() {
             {busy && <div className="thinking"><LoaderCircle size={17} className="spin" /> Reading your library...</div>}</div>
             <div className="composer-wrap"><div className="selection-line"><span><Check size={14} /> {selectedDocuments.length ? `${selectedDocuments.length} document${selectedDocuments.length > 1 ? "s" : ""} selected` : "Searching all documents"}</span><button onClick={() => setSelectedDocuments([])}>Clear selection</button></div><div className="composer"><textarea value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitQuery(); } }} placeholder="Ask a question about your documents..." rows={2} /><div className="composer-tools"><button className="icon-button" aria-label="Attach document" onClick={handleAttachClick}><Paperclip size={18} /></button><span className="composer-hint">Shift + Enter for a new line</span><button className="send-button" aria-label="Send question" onClick={submitQuery} disabled={!query.trim() || busy}><ArrowUp size={18} /></button></div></div></div>
           </section>
-          {libraryOpen && <aside className="library-panel"><div className="library-heading"><div><span className="eyebrow">Knowledge base</span><h3>Your library <span>{documents.length}</span></h3></div><button className="icon-button library-toggle" aria-label="Hide document library" onClick={toggleLibrary}><X size={19} /></button></div><button className="upload-zone" onClick={() => fileInput.current?.click()}><span className="upload-icon"><UploadCloud size={21} /></span><span><strong>{uploading ? "Adding document..." : "Add a PDF"}</strong><small>Drop it here or browse files</small></span><ChevronDown size={16} className="upload-chevron" /></button><div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a PDF to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
+          {libraryOpen && <aside className="library-panel"><div className="library-heading"><div><span className="eyebrow">Knowledge base</span><h3>Your library <span>{documents.length}</span></h3></div><button className="icon-button library-toggle" aria-label="Hide document library" onClick={toggleLibrary}><X size={19} /></button></div>
+
+            {/* Upload zone with progress */}
+            <button
+              className={`upload-zone ${uploading ? "upload-zone--busy" : ""} ${isDragOver ? "upload-zone--dragover" : ""} ${uploadStep === "done" ? "upload-zone--done" : ""}`}
+              onClick={() => !uploading && fileInput.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); if (!uploading) setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file && !uploading) uploadDocument(file);
+              }}
+              disabled={uploading}
+              aria-label="Upload PDF document"
+            >
+              <span className={`upload-icon ${uploading && uploadStep !== "done" ? "upload-icon--spin" : ""} ${uploadStep === "done" ? "upload-icon--done" : ""}`}>
+                {uploadStep === "done" ? <Check size={21} /> : <UploadCloud size={21} />}
+              </span>
+              <span className="upload-zone-text">
+                {!uploading && !uploadStep && (
+                  <>
+                    <strong>{isDragOver ? "Drop to upload" : "Add a PDF"}</strong>
+                    <small>Drop it here or browse files</small>
+                  </>
+                )}
+                {uploading && uploadStep !== "done" && (
+                  <>
+                    <strong>
+                      {uploadStep === "reading" && "Reading file…"}
+                      {uploadStep === "uploading" && "Uploading…"}
+                      {uploadStep === "indexing" && "Building index…"}
+                    </strong>
+                    <small className="upload-step-label">
+                      {uploadStep === "reading" && "Parsing PDF structure"}
+                      {uploadStep === "uploading" && "Sending to server"}
+                      {uploadStep === "indexing" && "Generating embeddings"}
+                    </small>
+                  </>
+                )}
+                {uploadStep === "done" && (
+                  <>
+                    <strong className="upload-success-text">Added to library!</strong>
+                    <small className="upload-filename">{uploadSuccess}</small>
+                  </>
+                )}
+              </span>
+              {!uploading && <ChevronDown size={16} className="upload-chevron" />}
+              {uploading && uploadStep !== "done" && (
+                <span className="upload-pct">{Math.round(uploadProgress)}%</span>
+              )}
+              {/* Progress bar */}
+              {uploading && (
+                <span
+                  className={`upload-progress-bar ${uploadStep === "done" ? "upload-progress-bar--done" : ""}`}
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              )}
+            </button>
+
+            <div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a PDF to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
         </div>
         {/* Hidden file input - always available for both paperclip and upload zone */}
         <input ref={fileInput} type="file" accept="application/pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadDocument(file); event.target.value = ""; }} />
