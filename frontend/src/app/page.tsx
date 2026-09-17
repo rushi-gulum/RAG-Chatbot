@@ -4,7 +4,7 @@ import {
   ArrowUp, BookOpen, Check, ChevronDown, Copy, CopyCheck, FileText,
   LoaderCircle, LogOut, Menu, MessageSquare, MoreHorizontal,
   Paperclip, PanelRightOpen, Pencil, Plus, Search, ShieldCheck,
-  Sparkles, Trash2, UploadCloud, Download, X,
+  Sparkles, Trash2, UploadCloud, Download, X, List,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/auth";
@@ -38,6 +38,95 @@ function cleanAssistantResponse(content: string) {
   return content.replace(/^\s*\*\*Direct Answer\*\*\s*:?[ \t]*/i, "");
 }
 
+// ── Conversation Navigator Rail ─────────────────────────────────────────────
+function ConversationRail({
+  messages,
+  onJump,
+}: {
+  messages: Message[];
+  onJump: (id: string) => void;
+}) {
+  const [railOpen, setRailOpen] = useState(false);
+  const userMessages = messages.filter((m) => m.type === "user");
+  if (userMessages.length === 0) return null;
+
+  return (
+    <>
+      {/* Desktop: thin tick rail pinned to right edge of chat area */}
+      <nav className="conv-rail" aria-label="Jump to question">
+        {userMessages.map((msg, i) => (
+          <button
+            key={msg.id}
+            className="conv-rail-tick"
+            onClick={() => onJump(msg.id)}
+            aria-label={`Jump to question ${i + 1}: ${msg.content.slice(0, 60)}`}
+          >
+            <span className="conv-rail-tooltip">
+              <span className="conv-rail-tooltip-num">Q{i + 1}</span>
+              {msg.content.length > 48
+                ? msg.content.slice(0, 48) + "…"
+                : msg.content}
+            </span>
+          </button>
+        ))}
+      </nav>
+
+      {/* Mobile: floating button + slide-up drawer */}
+      <div className="conv-rail-mobile">
+        <button
+          className="conv-rail-mobile-trigger"
+          onClick={() => setRailOpen((v) => !v)}
+          aria-label="Jump to question"
+          aria-expanded={railOpen}
+        >
+          <List size={16} />
+          <span className="conv-rail-mobile-count">{userMessages.length}</span>
+        </button>
+
+        {railOpen && (
+          <>
+            <div
+              className="conv-rail-mobile-backdrop"
+              onClick={() => setRailOpen(false)}
+            />
+            <div className="conv-rail-mobile-drawer">
+              <div className="conv-rail-mobile-header">
+                <span>Questions in this chat</span>
+                <button
+                  className="conv-rail-mobile-close"
+                  onClick={() => setRailOpen(false)}
+                  aria-label="Close navigator"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="conv-rail-mobile-list">
+                {userMessages.map((msg, i) => (
+                  <button
+                    key={msg.id}
+                    className="conv-rail-mobile-item"
+                    onClick={() => {
+                      onJump(msg.id);
+                      setRailOpen(false);
+                    }}
+                  >
+                    <span className="conv-rail-mobile-item-num">Q{i + 1}</span>
+                    <span className="conv-rail-mobile-item-text">
+                      {msg.content.length > 72
+                        ? msg.content.slice(0, 72) + "…"
+                        : msg.content}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function Home() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -68,6 +157,25 @@ export default function Home() {
   const [copiedId, setCopiedId] = useState<string | null>(null);              // message_id that was just copied
   const fileInput = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const messageRefsMap = useRef<Map<string, HTMLElement>>(new Map());
+  const conversationScrollRef = useRef<HTMLDivElement>(null);
+
+  const setMessageRef = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) messageRefsMap.current.set(id, el);
+    else messageRefsMap.current.delete(id);
+  }, []);
+
+  const jumpToMessage = useCallback((id: string) => {
+    const el = messageRefsMap.current.get(id);
+    if (!el) return;
+    const scrollContainer = conversationScrollRef.current;
+    if (scrollContainer) {
+      const elTop = el.offsetTop - scrollContainer.offsetTop;
+      scrollContainer.scrollTo({ top: elTop - 16, behavior: "smooth" });
+    } else {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   const loadDocuments = useCallback(async () => {
     if (!authInitialized || !user) return;
@@ -635,8 +743,9 @@ export default function Home() {
         {!libraryOpen && <button className="icon-button library-restore" aria-label="Show document library" onClick={toggleLibrary}><PanelRightOpen size={19} /></button>}
         <div className={`content-grid ${libraryOpen ? "" : "library-hidden"}`}>
           <section className={`chat-column ${messages.length > 0 ? "has-messages" : ""}`}>
-            <div className="conversation-scroll"><div className="chat-intro"><h2>Ask your library.<br /><em>See the whole picture.</em></h2></div>
-            {messages.length > 0 && <div className="message-list">{messages.map((message) => <article className={`message ${message.type}`} key={message.id}>
+            <div className="chat-column-inner">
+            <div className="conversation-scroll" ref={conversationScrollRef}><div className="chat-intro"><h2>Ask your library.<br /><em>See the whole picture.</em></h2></div>
+            {messages.length > 0 && <div className="message-list">{messages.map((message) => <article className={`message ${message.type}`} key={message.id} ref={(el) => setMessageRef(message.id, el)}>
                       <div className="message-header">
                         <div className="message-label">{message.type === "user" ? "You" : "vw-brain AI"}</div>
                         {message.type === "assistant" && (
@@ -672,6 +781,8 @@ export default function Home() {
                       )}
                     </article>)}</div>}
             {busy && <div className="thinking"><LoaderCircle size={17} className="spin" /> Reading your library...</div>}</div>
+            <ConversationRail messages={messages} onJump={jumpToMessage} />
+            </div>
             <div className="composer-wrap"><div className="selection-line"><span><Check size={14} /> {selectedDocuments.length ? `${selectedDocuments.length} document${selectedDocuments.length > 1 ? "s" : ""} selected` : "Searching all documents"}</span><button onClick={() => setSelectedDocuments([])}>Clear selection</button></div><div className="composer"><textarea value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitQuery(); } }} placeholder="Ask a question about your documents..." rows={2} /><div className="composer-tools"><button className="icon-button" aria-label="Attach document" onClick={handleAttachClick}><Paperclip size={18} /></button><span className="composer-hint">Shift + Enter for a new line</span><button className="send-button" aria-label="Send question" onClick={submitQuery} disabled={!query.trim() || busy}><ArrowUp size={18} /></button></div></div></div>
           </section>
           {libraryOpen && <aside className="library-panel"><div className="library-heading"><div><span className="eyebrow">Knowledge base</span><h3>Your library <span>{documents.length}</span></h3></div><button className="icon-button library-toggle" aria-label="Hide document library" onClick={toggleLibrary}><X size={19} /></button></div>

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![RAG Chatbot Interface](https://github.com/user-attachments/assets/3394aa9f-94fd-4800-bdd0-b1d820007469)
+![RAG Chatbot Interface](frontend/public/rag_interface.png)
 
 **An enterprise-grade conversational AI system that transforms document libraries into intelligent knowledge bases**
 
