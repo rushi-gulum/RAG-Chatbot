@@ -53,6 +53,7 @@ export default function Home() {
   const [authInitialized, setAuthInitialized] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [libraryOpen, setLibraryOpen] = useState(true);
+  const [showBackdrop, setShowBackdrop] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const loadDocuments = useCallback(async () => {
@@ -112,6 +113,10 @@ export default function Home() {
   const startNewConversation = () => {
     setActiveSessionId(null);
     setMessages([]);
+    if (window.innerWidth <= 720) {
+      setSidebarOpen(false);
+      setShowBackdrop(false);
+    }
   };
 
   const openConversation = async (sessionId: string) => {
@@ -126,6 +131,10 @@ export default function Home() {
         content: message.type === "assistant" ? cleanAssistantResponse(message.content) : message.content,
         sources: message.sources,
       })));
+      if (window.innerWidth <= 720) {
+        setSidebarOpen(false);
+        setShowBackdrop(false);
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not open conversation.");
     } finally {
@@ -193,27 +202,84 @@ export default function Home() {
   const toggleDocument = (id: string) => setSelectedDocuments((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const filteredDocuments = documents.filter((document) => document.filename.toLowerCase().includes(search.toLowerCase()));
 
+  const toggleSidebar = () => {
+    const newState = !sidebarOpen;
+    setSidebarOpen(newState);
+    setShowBackdrop(newState && window.innerWidth <= 720);
+    if (newState && window.innerWidth <= 720) setLibraryOpen(false);
+  };
+
+  const toggleLibrary = () => {
+    const newState = !libraryOpen;
+    setLibraryOpen(newState);
+    setShowBackdrop(newState && window.innerWidth <= 720);
+    if (newState && window.innerWidth <= 720) setSidebarOpen(false);
+  };
+
+  const closeOverlays = () => {
+    if (window.innerWidth <= 720) {
+      setSidebarOpen(false);
+      setLibraryOpen(false);
+      setShowBackdrop(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeOverlays();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 720) {
+        setShowBackdrop(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
-    <main className={`workspace-shell ${sidebarOpen ? "" : "sidebar-hidden"}`}>
+    <main className={`workspace-shell ${sidebarOpen ? "" : "sidebar-hidden"} ${libraryOpen ? "" : "library-hidden"}`}>
+      {/* Mobile backdrop */}
+      {showBackdrop && <div className="mobile-backdrop" onClick={closeOverlays} />}
+      
+      {/* Mobile header - only visible on mobile */}
+      <header className="mobile-header">
+        <button className="mobile-header-button" aria-label="Open menu" onClick={toggleSidebar}>
+          <Menu size={20} />
+        </button>
+        <div className="mobile-brand">
+          <div className="brand-mark"><Sparkles size={15} strokeWidth={2.5} /></div>
+          <span className="brand-name">vw-brain<span>.</span></span>
+        </div>
+        <button className="mobile-header-button" aria-label="Open library" onClick={toggleLibrary}>
+          <BookOpen size={20} />
+        </button>
+      </header>
+
       {sidebarOpen && <aside className="sidebar">
-        <div className="brand-row"><div className="brand-mark"><Sparkles size={17} strokeWidth={2.5} /></div><span className="brand-name">vw-brain<span>.</span></span><button className="icon-button sidebar-toggle" aria-label="Hide conversation sidebar" onClick={() => setSidebarOpen(false)}><Menu size={18} /></button></div>
+        <div className="brand-row"><div className="brand-mark"><Sparkles size={17} strokeWidth={2.5} /></div><span className="brand-name">vw-brain<span>.</span></span><button className="icon-button sidebar-toggle" aria-label="Hide conversation sidebar" onClick={toggleSidebar}><X size={18} /></button></div>
         <button className="new-chat-button" onClick={startNewConversation}><Plus size={18} /> New conversation</button>
         <div className="sidebar-section-label recent-label">Recent conversations</div>
         <div className="recent-list">{sessions.length ? sessions.slice(0, 6).map((session) => <button className={`recent-item ${activeSessionId === session.session_id ? "active" : ""}`} key={session.session_id} onClick={() => openConversation(session.session_id)}><span>{session.title}</span><MoreHorizontal size={16} /></button>) : <p className="empty-sidebar">Your conversations will appear here.</p>}</div>
         <div className="sidebar-footer"><div className="security-note"><ShieldCheck size={17} /><span><strong>Private by design</strong><small>Your documents stay in your workspace.</small></span></div><div className="account-row"><div className="avatar">{user?.email?.[0]?.toUpperCase() || "L"}</div><div className="account-copy"><strong>{user?.displayName || (LOCAL_AUTH_MODE ? "Local workspace" : "Firebase account")}</strong><small>{LOCAL_AUTH_MODE ? "Local development" : user?.email || "Not signed in"}</small></div>{user && firebaseAuth ? <button className="icon-button" aria-label="Sign out" onClick={handleSignOut}><LogOut size={16} /></button> : !LOCAL_AUTH_MODE && firebaseAuth ? <button className="sign-in-button" onClick={handleSignIn}>Sign in</button> : null}</div></div>
       </aside>}
-      {!sidebarOpen && <aside className="collapsed-sidebar" aria-label="Collapsed conversation sidebar"><button className="collapsed-rail-button" aria-label="Show conversation sidebar" onClick={() => setSidebarOpen(true)}><Menu size={19} /></button><button className="collapsed-rail-button" aria-label="New conversation" onClick={startNewConversation}><Plus size={20} /></button></aside>}
+      {!sidebarOpen && <aside className="collapsed-sidebar" aria-label="Collapsed conversation sidebar"><button className="collapsed-rail-button" aria-label="Show conversation sidebar" onClick={toggleSidebar}><Menu size={19} /></button><button className="collapsed-rail-button" aria-label="New conversation" onClick={startNewConversation}><Plus size={20} /></button></aside>}
 
       <section className="main-panel">
-        {!libraryOpen && <button className="icon-button library-restore" aria-label="Show document library" onClick={() => setLibraryOpen(true)}><PanelRightOpen size={19} /></button>}
+        {!libraryOpen && <button className="icon-button library-restore" aria-label="Show document library" onClick={toggleLibrary}><PanelRightOpen size={19} /></button>}
         <div className={`content-grid ${libraryOpen ? "" : "library-hidden"}`}>
           <section className="chat-column">
             <div className="conversation-scroll"><div className="chat-intro"><h2>Ask your library.<br /><em>See the whole picture.</em></h2></div>
             {messages.length > 0 && <div className="message-list">{messages.map((message) => <article className={`message ${message.type}`} key={message.id}><div className="message-label">{message.type === "user" ? "You" : "vw-brain AI"}</div><div className="message-content"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div>{message.sources && message.sources.length > 0 && <div className="source-row">{message.sources.slice(0, 3).map((source, index) => <span className="source-pill" key={`${source.filename}-${index}`}><FileText size={13} />{source.filename || "Document"}<b>[{index + 1}]</b></span>)}</div>}</article>)}</div>}
             {busy && <div className="thinking"><LoaderCircle size={17} className="spin" /> Reading your library...</div>}</div>
-            <div className="composer-wrap"><div className="selection-line"><span><Check size={14} /> {selectedDocuments.length ? `${selectedDocuments.length} document${selectedDocuments.length > 1 ? "s" : ""} selected` : "Searching all documents"}</span><button onClick={() => setSelectedDocuments([])}>Clear selection</button></div><div className="composer"><textarea value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitQuery(); } }} placeholder="Ask a question about your documents..." rows={2} /><div className="composer-tools"><button className="icon-button" aria-label="Attach document" onClick={() => fileInput.current?.click()}><Paperclip size={18} /></button><span>Shift + Enter for a new line</span><button className="send-button" aria-label="Send question" onClick={submitQuery} disabled={!query.trim() || busy}><ArrowUp size={18} /></button></div></div></div>
+            <div className="composer-wrap"><div className="selection-line"><span><Check size={14} /> {selectedDocuments.length ? `${selectedDocuments.length} document${selectedDocuments.length > 1 ? "s" : ""} selected` : "Searching all documents"}</span><button onClick={() => setSelectedDocuments([])}>Clear selection</button></div><div className="composer"><textarea value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitQuery(); } }} placeholder="Ask a question about your documents..." rows={2} /><div className="composer-tools"><button className="icon-button" aria-label="Attach document" onClick={() => fileInput.current?.click()}><Paperclip size={18} /></button><span className="composer-hint">Shift + Enter for a new line</span><button className="send-button" aria-label="Send question" onClick={submitQuery} disabled={!query.trim() || busy}><ArrowUp size={18} /></button></div></div></div>
           </section>
-          {libraryOpen && <aside className="library-panel"><div className="library-heading"><div><span className="eyebrow">Knowledge base</span><h3>Your library <span>{documents.length}</span></h3></div><button className="icon-button library-toggle" aria-label="Hide document library" onClick={() => setLibraryOpen(false)}><Menu size={19} /></button></div><button className="upload-zone" onClick={() => fileInput.current?.click()}><span className="upload-icon"><UploadCloud size={21} /></span><span><strong>{uploading ? "Adding document..." : "Add a PDF"}</strong><small>Drop it here or browse files</small></span><ChevronDown size={16} className="upload-chevron" /></button><input ref={fileInput} type="file" accept="application/pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadDocument(file); event.target.value = ""; }} /><div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a PDF to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
+          {libraryOpen && <aside className="library-panel"><div className="library-heading"><div><span className="eyebrow">Knowledge base</span><h3>Your library <span>{documents.length}</span></h3></div><button className="icon-button library-toggle" aria-label="Hide document library" onClick={toggleLibrary}><X size={19} /></button></div><button className="upload-zone" onClick={() => fileInput.current?.click()}><span className="upload-icon"><UploadCloud size={21} /></span><span><strong>{uploading ? "Adding document..." : "Add a PDF"}</strong><small>Drop it here or browse files</small></span><ChevronDown size={16} className="upload-chevron" /></button><input ref={fileInput} type="file" accept="application/pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadDocument(file); event.target.value = ""; }} /><div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a PDF to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
         </div>
         {error && <button className="error-toast" onClick={() => setError("")}><X size={16} />{error}</button>}
       </section>

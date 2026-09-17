@@ -43,7 +43,41 @@ I’m preparing a split deployment: Vercel for frontend, Render for the FastAPI 
 
 
 
+Steps:
 
+Go to: https://vercel.com/dashboard
+Select your project: rag-chatbot-4o35
+Go to: Settings → Environment Variables
+Add each variable above
+Make sure they're enabled for Production environment
+After adding all, click Redeploy from the Deployments tab
+2. Update Render Environment Variables
+Go to your Render service and update CORS settings:
+
+Steps:
+
+Go to: https://dashboard.render.com/
+Select service: vw-brain-api (or your backend service name)
+Go to: Environment tab
+Update these variables:
+FRONTEND_URL = https://rag-chatbot-4o35.vercel.app
+ALLOWED_ORIGINS = https://rag-chatbot-4o35.vercel.app,http://localhost:3000
+Click Save Changes (Render will auto-redeploy)
+🧪 Test the Full Flow
+Once both are redeployed, test:
+
+Open: https://rag-chatbot-4o35.vercel.app/
+Sign in with Google (should work now that domain is authorized)
+Upload a PDF (test file < 5MB)
+Ask a question about the PDF content
+Check response includes citations
+Troubleshooting:
+If you see errors, check browser console (F12) and share:
+
+Any CORS errors?
+Any Firebase auth errors?
+Any network request failures?
+Let me know when the redeploys are done and we can test!
 
 Vercel        → Next.js frontend
 Render        → FastAPI backend
