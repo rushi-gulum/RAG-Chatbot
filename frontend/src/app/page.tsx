@@ -2,9 +2,9 @@
 
 import {
   ArrowUp, BookOpen, Check, ChevronDown, FileText,
-  LoaderCircle, LogOut, Menu, MoreHorizontal,
-  Paperclip, PanelRightOpen, Plus, Search, ShieldCheck,
-  Sparkles, Trash2, UploadCloud, X,
+  LoaderCircle, LogOut, Menu, MessageSquare, MoreHorizontal,
+  Paperclip, PanelRightOpen, Pencil, Plus, Search, ShieldCheck,
+  Sparkles, Trash2, UploadCloud, Download, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/auth";
@@ -59,7 +59,14 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [showBackdrop, setShowBackdrop] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState("");
+  const [showAllSessions, setShowAllSessions] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);      // session_id of open context menu
+  const [renamingId, setRenamingId] = useState<string | null>(null);       // session_id being renamed
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null); // session_id pending delete confirm
   const fileInput = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const loadDocuments = useCallback(async () => {
     if (!authInitialized || !user) return;
@@ -129,6 +136,72 @@ export default function Home() {
     if (window.innerWidth <= 720) {
       setSidebarOpen(false);
       setShowBackdrop(false);
+    }
+  };
+
+  const deleteSession = async (sessionId: string) => {
+    setActiveMenu(null);
+    setConfirmDeleteId(sessionId);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (!confirmDeleteId) return;
+    const sessionId = confirmDeleteId;
+    setConfirmDeleteId(null);
+    setError("");
+    try {
+      await apiRequest(`/chat/sessions/${sessionId}`, { method: "DELETE" }, user);
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+        setMessages([]);
+      }
+      await loadSessions();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not delete conversation.");
+    }
+  };
+
+  const startRename = (sessionId: string, currentTitle: string) => {
+    setActiveMenu(null);
+    setRenamingId(sessionId);
+    setRenameValue(currentTitle);
+    // Focus the input on next tick after render
+    setTimeout(() => renameInputRef.current?.select(), 30);
+  };
+
+  const commitRename = async (sessionId: string) => {
+    const trimmed = renameValue.trim();
+    setRenamingId(null);
+    if (!trimmed) return;
+    const prev = sessions.find((s) => s.session_id === sessionId)?.title;
+    if (trimmed === prev) return;
+    // Optimistic update
+    setSessions((current) => current.map((s) => s.session_id === sessionId ? { ...s, title: trimmed } : s));
+    try {
+      await apiRequest(`/chat/sessions/${sessionId}/title`, {
+        method: "PUT",
+        body: JSON.stringify({ title: trimmed }),
+      }, user);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not rename conversation.");
+      await loadSessions(); // revert on failure
+    }
+  };
+
+  const exportSession = async (sessionId: string, title: string) => {
+    setActiveMenu(null);
+    setError("");
+    try {
+      const data = await apiRequest(`/chat/sessions/${sessionId}/export`, {}, user);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_export.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not export conversation.");
     }
   };
 
@@ -290,6 +363,9 @@ export default function Home() {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (confirmDeleteId) { setConfirmDeleteId(null); return; }
+        if (renamingId) { setRenamingId(null); return; }
+        if (activeMenu) { setActiveMenu(null); return; }
         // Don't close login modal with Escape
         if (!showLoginModal) {
           closeOverlays();
@@ -298,7 +374,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [showLoginModal]);
+  }, [showLoginModal, activeMenu, renamingId, confirmDeleteId]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -309,6 +385,17 @@ export default function Home() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!activeMenu) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as Element;
+      if (!target.closest(".session-menu")) setActiveMenu(null);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [activeMenu]);
 
   return (
     <main className={`workspace-shell ${sidebarOpen ? "" : "sidebar-hidden"} ${libraryOpen ? "" : "library-hidden"}`}>
@@ -352,6 +439,25 @@ export default function Home() {
         </>
       )}
       
+      {/* Delete conversation confirm modal */}
+      {confirmDeleteId && (
+        <>
+          <div className="modal-backdrop" onClick={() => setConfirmDeleteId(null)} style={{ zIndex: 210 }} />
+          <div className="delete-confirm-modal">
+            <div className="delete-confirm-icon"><Trash2 size={20} /></div>
+            <h3>Delete conversation?</h3>
+            <p>
+              <strong>{sessions.find((s) => s.session_id === confirmDeleteId)?.title || "This conversation"}</strong>
+              {" "}will be permanently removed and cannot be recovered.
+            </p>
+            <div className="delete-confirm-actions">
+              <button className="delete-confirm-cancel" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className="delete-confirm-ok" onClick={confirmDeleteSession}>Delete</button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Mobile header - only visible on mobile */}
       <header className="mobile-header">
         <button className="mobile-header-button" aria-label="Open menu" onClick={toggleSidebar}>
@@ -370,7 +476,122 @@ export default function Home() {
         <div className="brand-row"><div className="brand-mark"><Sparkles size={17} strokeWidth={2.5} /></div><span className="brand-name">vw-brain<span>.</span></span><button className="icon-button sidebar-toggle" aria-label="Hide conversation sidebar" onClick={toggleSidebar}><X size={18} /></button></div>
         <button className="new-chat-button" onClick={startNewConversation}><Plus size={18} /> New conversation</button>
         <div className="sidebar-section-label recent-label">Recent conversations</div>
-        <div className="recent-list">{sessions.length ? sessions.slice(0, 6).map((session) => <button className={`recent-item ${activeSessionId === session.session_id ? "active" : ""}`} key={session.session_id} onClick={() => openConversation(session.session_id)}><span>{session.title}</span><MoreHorizontal size={16} /></button>) : <p className="empty-sidebar">Your conversations will appear here.</p>}</div>
+        
+        {/* Conversation search */}
+        <div className="convo-search">
+          <Search size={13} />
+          <input
+            value={sessionSearch}
+            onChange={(e) => setSessionSearch(e.target.value)}
+            placeholder="Search conversations…"
+          />
+          {sessionSearch && <button className="convo-search-clear" onClick={() => setSessionSearch("")}><X size={12} /></button>}
+        </div>
+
+        <div className="recent-list">
+          {(() => {
+            const filtered = sessions.filter((s) =>
+              s.title.toLowerCase().includes(sessionSearch.toLowerCase())
+            );
+            const visible = showAllSessions ? filtered : filtered.slice(0, 8);
+            const formatDate = (iso: string) => {
+              const d = new Date(iso);
+              const now = new Date();
+              const diff = now.getTime() - d.getTime();
+              if (diff < 60_000) return "just now";
+              if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+              if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+              if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+              return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            };
+
+            if (!filtered.length) return (
+              <p className="empty-sidebar">
+                {sessionSearch ? `No conversations match "${sessionSearch}"` : "Your conversations will appear here."}
+              </p>
+            );
+
+            return (
+              <>
+                {visible.map((session) => (
+                  <div
+                    className={`recent-item-wrap ${activeSessionId === session.session_id ? "active" : ""}`}
+                    key={session.session_id}
+                  >
+                    {renamingId === session.session_id ? (
+                      // Inline rename input
+                      <input
+                        ref={renameInputRef}
+                        className="rename-input"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => commitRename(session.session_id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRename(session.session_id);
+                          if (e.key === "Escape") setRenamingId(null);
+                        }}
+                        maxLength={80}
+                        autoFocus
+                      />
+                    ) : (
+                      <button
+                        className="recent-item-btn"
+                        onClick={() => openConversation(session.session_id)}
+                        title={session.title}
+                      >
+                        <span className="recent-item-title">{session.title}</span>
+                        <span className="recent-item-meta">
+                          {session.message_count > 0 && (
+                            <span className="meta-count">
+                              <MessageSquare size={10} />{session.message_count}
+                            </span>
+                          )}
+                          <span className="meta-date">{formatDate(session.updated_at)}</span>
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Context menu trigger */}
+                    <div className="session-menu">
+                      <button
+                        className="session-menu-trigger"
+                        aria-label="Conversation options"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenu(activeMenu === session.session_id ? null : session.session_id);
+                        }}
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                      {activeMenu === session.session_id && (
+                        <div className="session-menu-dropdown">
+                          <button onClick={() => startRename(session.session_id, session.title)}>
+                            <Pencil size={13} /> Rename
+                          </button>
+                          <button onClick={() => exportSession(session.session_id, session.title)}>
+                            <Download size={13} /> Export JSON
+                          </button>
+                          <button className="menu-danger" onClick={() => deleteSession(session.session_id)}>
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Show more / less */}
+                {filtered.length > 8 && (
+                  <button className="show-more-btn" onClick={() => setShowAllSessions((v) => !v)}>
+                    {showAllSessions
+                      ? `Show less`
+                      : `Show ${filtered.length - 8} more`}
+                  </button>
+                )}
+              </>
+            );
+          })()}
+        </div>
         <div className="sidebar-footer"><div className="security-note"><ShieldCheck size={17} /><span><strong>Private by design</strong><small>Your documents stay in your workspace.</small></span></div><div className="account-row"><div className="avatar">{user?.email?.[0]?.toUpperCase() || "L"}</div><div className="account-copy"><strong>{user?.displayName || (LOCAL_AUTH_MODE ? "Local workspace" : "Google Account")}</strong><small>{LOCAL_AUTH_MODE ? "Local development" : user?.email || "Not signed in"}</small></div>{user && firebaseAuth ? <button className="icon-button" aria-label="Sign out" onClick={handleSignOut}><LogOut size={16} /></button> : !LOCAL_AUTH_MODE && firebaseAuth ? <button className="sign-in-button" onClick={handleSignIn}>Sign in</button> : null}</div></div>
       </aside>}
       {!sidebarOpen && <aside className="collapsed-sidebar" aria-label="Collapsed conversation sidebar"><button className="collapsed-rail-button" aria-label="Show conversation sidebar" onClick={toggleSidebar}><Menu size={19} /></button><button className="collapsed-rail-button" aria-label="New conversation" onClick={startNewConversation}><Plus size={20} /></button></aside>}
