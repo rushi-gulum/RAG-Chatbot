@@ -1159,6 +1159,4 @@ This project builds upon excellent open-source technologies:
 
 Made by the VW-Brain team
 
-[Report Bug](https://github.com/yourusername/RAG-Chatbot/issues) · [Request Feature](https://github.com/yourusername/RAG-Chatbot/issues) · [Documentation](#)
-
 </div>
