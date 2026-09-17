@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "name": "vw-brain-frontend",
-  "framework": "nextjs",
-  "root": "frontend",
-  "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "outputDirectory": ".next"
-}
