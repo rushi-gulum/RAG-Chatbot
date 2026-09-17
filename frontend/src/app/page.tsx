@@ -51,8 +51,8 @@ export default function Home() {
   const [error, setError] = useState("");
   const [user, setUser] = useState<User | null>(null);
   const [authInitialized, setAuthInitialized] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [showBackdrop, setShowBackdrop] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 

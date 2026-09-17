@@ -1,61 +1,85 @@
-# Python-related files
+# ============================================
+# Python
+# ============================================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.env
-*.env.*
-!.env.example
-!.env.*.example
-*.venv
-.env
-.venv
 *.egg
 *.egg-info/
 dist/
 build/
-*.egg-info/
+.venv/
+venv/
+*.venv
+.Python
 
-# Node.js-related files
+# ============================================
+# Environment Variables & Secrets
+# ============================================
+.env
+.env.*
+.env_local
+!.env.example
+!.env.*.example
+
+# Firebase Admin SDK service account keys (NEVER commit!)
+*firebase-adminsdk*.json
+ragchatbot-*-firebase-adminsdk-*.json
+backend/*firebase-adminsdk*.json
+frontend/*firebase-adminsdk*.json
+
+# Local secrets and credentials
+*service-account*.json
+*credentials*.json
+*.pem
+*.key
+*.p12
+
+# ============================================
+# Node.js / Frontend
+# ============================================
 node_modules/
 .next/
 out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
+.turbo/
 
-# OS-generated files
-.DS_Store
-Thumbs.db
-
-# IDE-specific files
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Logs
-*.log
-
-# Environment files
-.env
-.env_local
-
-# SQLite database
+# ============================================
+# Databases & Vector Stores
+# ============================================
+# SQLite databases
 *.sqlite3
 *.db
 *.db-journal
+ragchatbot.db
+backend/ragchatbot.db
 
-# Local application data
+# ChromaDB (legacy - now using Qdrant Cloud)
 backend/chroma_db/
 backend/chroma_db_users/
 chroma_db/
 chroma_db_users/
+
+# ============================================
+# File Uploads & Temporary Files
+# ============================================
 uploads/
 backend/uploads/
+*.pdf
+!backend/test-files/*.pdf  # Keep test fixtures if needed
+
+# ============================================
+# Testing & Evaluation
+# ============================================
+# Test outputs and evaluation results
+evaluation_results*.json
+backend/evaluation_results*.json
+test-simple.pdf
+backend/test-simple.pdf
 
 # Coverage reports
 htmlcov/
@@ -67,22 +91,75 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+.tox/
+
+# ============================================
+# Development Tools
+# ============================================
+# Helper scripts (can be re-run, not needed in repo)
+get_test_token.py
+backend/get_test_token.py
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
+
+# ============================================
+# OS-generated Files
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# IDE-specific Files
+# ============================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*~
+
+# ============================================
+# Logs
+# ============================================
+*.log
+logs/
+backend/logs/
+frontend/logs/
+
+# ============================================
+# Build & Deployment
+# ============================================
+# Docker (not used in current Render deployment)
+*.dockerignore
+dockerfile
+backend/dockerfile
 
 # Tailwind CSS
 *.css.map
 
-# Firebase Admin SDK service account keys (NEVER commit these!)
-*firebase-adminsdk*.json
-ragchatbot-*-firebase-adminsdk-*.json
-backend/*firebase-adminsdk*.json
-frontend/*firebase-adminsdk*.json
-.ragchatbot-f3ffd-firebase-adminsdk-fbsvc-110048a5f2.json
+# Next.js build info
+.next/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+frontend/tsconfig.tsbuildinfo
 
-# Local secrets and credential exports
-*service-account*.json
-*credentials*.json
-*.pem
-*.key
+# ============================================
+# Miscellaneous
+# ============================================
+# Temporary files
+*.tmp
+*.temp
+.temp/
+tmp/
