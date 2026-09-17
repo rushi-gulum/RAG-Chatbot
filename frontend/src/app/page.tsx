@@ -50,36 +50,48 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [user, setUser] = useState<User | null>(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [libraryOpen, setLibraryOpen] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const loadDocuments = useCallback(async () => {
+    if (!authInitialized || !user) return;
     try {
       const data = await apiRequest("/documents/list", {}, user);
       setDocuments(data.documents || []);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load documents.");
     }
-  }, [user]);
-
-  useEffect(() => {
-    if (!firebaseAuth) return;
-    return onAuthStateChanged(firebaseAuth, setUser);
-  }, []);
-
-  useEffect(() => { loadDocuments(); }, [loadDocuments]);
+  }, [user, authInitialized]);
 
   const loadSessions = useCallback(async () => {
+    if (!authInitialized || !user) return;
     try {
       const data = await apiRequest("/chat/sessions", {}, user);
       setSessions(data || []);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load conversations.");
     }
-  }, [user]);
+  }, [user, authInitialized]);
 
-  useEffect(() => { loadSessions(); }, [loadSessions]);
+  useEffect(() => {
+    if (!firebaseAuth) {
+      setAuthInitialized(true);
+      return;
+    }
+    return onAuthStateChanged(firebaseAuth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthInitialized(true);
+    });
+  }, []);
+
+  useEffect(() => { 
+    if (authInitialized && user) {
+      loadDocuments();
+      loadSessions();
+    }
+  }, [authInitialized, user, loadDocuments, loadSessions]);
 
   const handleSignOut = () => {
     if (firebaseAuth) signOut(firebaseAuth);
