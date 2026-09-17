@@ -1,4 +1,4 @@
-# 🧠 RAG Chatbot - Production-Ready Retrieval-Augmented Generation System
+# RAGChatbot - Production-Ready RAG System
 
 <div align="center">
 
