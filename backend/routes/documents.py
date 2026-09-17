@@ -82,8 +82,9 @@ async def list_uploaded_documents(
             print(f"Database query failed: {db_error}")
 
         # Fallback: filesystem scan (development / first-run only)
+        _SUPPORTED_EXTS = ("*.pdf", "*.docx", "*.txt")
         if not documents_list:
-            for file_path in UPLOAD_DIR.glob("*.pdf"):
+            for file_path in (p for ext in _SUPPORTED_EXTS for p in UPLOAD_DIR.glob(ext)):
                 stats = file_path.stat()
                 parts = file_path.name.split("_", 1)
                 file_id = parts[0] if len(parts) > 1 else "unknown"
@@ -171,10 +172,11 @@ async def delete_document(
 
         # 3. Filesystem — any temp upload files matching the document ID
         try:
-            for file_path in UPLOAD_DIR.glob(f"{file_id}*.pdf"):
-                deletion_results["document_found"] = True
-                file_path.unlink(missing_ok=True)
-                deletion_results["filesystem"] = True
+            for ext in (".pdf", ".docx", ".txt"):
+                for file_path in UPLOAD_DIR.glob(f"{file_id}*{ext}"):
+                    deletion_results["document_found"] = True
+                    file_path.unlink(missing_ok=True)
+                    deletion_results["filesystem"] = True
         except Exception as file_error:
             print(f"Filesystem deletion failed: {file_error}")
 

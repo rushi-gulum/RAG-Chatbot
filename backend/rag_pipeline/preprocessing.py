@@ -6,6 +6,13 @@ from pathlib import Path
 import uuid
 from datetime import datetime
 
+# python-docx is optional; DOCX support is disabled if not installed
+try:
+    import docx as _docx
+    _DOCX_AVAILABLE = True
+except ImportError:
+    _DOCX_AVAILABLE = False
+
 class DocumentProcessor:
     def __init__(self, chunk_size=500, chunk_overlap=50, max_tokens_per_chunk=512):
         """
@@ -22,13 +29,7 @@ class DocumentProcessor:
 
     def extract_text_from_pdf(self, file_path: str) -> str:
         """
-        Extract raw text from PDF file
-        
-        Args:
-            file_path: Path to PDF file
-            
-        Returns:
-            Extracted text as string
+        Extract raw text from PDF file.
         """
         try:
             text = ""
@@ -42,6 +43,38 @@ class DocumentProcessor:
             return text
         except Exception as e:
             raise Exception(f"Error extracting text from PDF: {str(e)}")
+
+    def extract_text_from_docx(self, file_path: str) -> str:
+        """
+        Extract raw text from a DOCX file using python-docx.
+        Paragraphs are joined with newlines to preserve document structure.
+        """
+        if not _DOCX_AVAILABLE:
+            raise ImportError(
+                "python-docx is required for DOCX support. "
+                "Install it with: pip install python-docx"
+            )
+        try:
+            doc = _docx.Document(file_path)
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            return "\n".join(paragraphs)
+        except Exception as e:
+            raise Exception(f"Error extracting text from DOCX: {str(e)}")
+
+    def extract_text_from_txt(self, file_path: str) -> str:
+        """
+        Extract raw text from a plain-text file.
+        Falls back to latin-1 if the file is not valid UTF-8.
+        """
+        try:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except UnicodeDecodeError:
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    return f.read()
+        except Exception as e:
+            raise Exception(f"Error extracting text from TXT: {str(e)}")
 
     def clean_text(self, text: str) -> str:
         """
@@ -193,11 +226,19 @@ class DocumentProcessor:
             List of processed chunks ready for embedding
         """
         try:
-            # Step 1: Extract text
-            if file_path.lower().endswith('.pdf'):
+            # Step 1: Extract text based on file extension
+            ext = Path(file_path).suffix.lower()
+            if ext == '.pdf':
                 raw_text = self.extract_text_from_pdf(file_path)
+                file_type = "pdf"
+            elif ext == '.docx':
+                raw_text = self.extract_text_from_docx(file_path)
+                file_type = "docx"
+            elif ext == '.txt':
+                raw_text = self.extract_text_from_txt(file_path)
+                file_type = "txt"
             else:
-                raise ValueError(f"Unsupported file format: {file_path}")
+                raise ValueError(f"Unsupported file format: {ext or file_path}")
             
             if not raw_text.strip():
                 raise ValueError("No text could be extracted from the document")
@@ -210,7 +251,7 @@ class DocumentProcessor:
                 "file_id": file_id,
                 "filename": filename,
                 "file_path": file_path,
-                "file_type": "pdf",
+                "file_type": file_type,
                 "total_characters": len(clean_text),
                 "total_words": len(clean_text.split())
             }

@@ -13,8 +13,6 @@
 [![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-FF6F61?style=flat)](https://qdrant.tech/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[Live Demo](#) · [Documentation](#) · [Report Bug](#) · [Request Feature](#)
-
 </div>
 
 ---

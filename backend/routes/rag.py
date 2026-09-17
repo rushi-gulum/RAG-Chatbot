@@ -123,8 +123,9 @@ async def process_document_complete(
             detail="RAG pipeline not available. Please install dependencies: pip install chromadb torch transformers"
         )
     
-    if not file.filename or not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt'}
+    if not file.filename or Path(file.filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported")
     
     try:
         # Read file content for hash checking

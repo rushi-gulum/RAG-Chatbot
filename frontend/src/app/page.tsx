@@ -31,7 +31,7 @@ async function apiRequest(path: string, options: RequestInit = {}, user?: User |
 }
 
 function formatBytes(bytes: number) {
-  return bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : "PDF document";
+  return bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : "Document";
 }
 
 function cleanAssistantResponse(content: string) {
@@ -372,7 +372,16 @@ export default function Home() {
   };
 
   const uploadDocument = async (file: File) => {
-    if (file.type !== "application/pdf") { setError("Only PDF files can be added to the library."); return; }
+    const ALLOWED_MIME_TYPES = new Set([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+    ]);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!ALLOWED_MIME_TYPES.has(file.type) && ext !== "docx" && ext !== "txt" && ext !== "pdf") {
+      setError("Only PDF, DOCX, and TXT files can be added to the library.");
+      return;
+    }
 
     setUploading(true);
     setUploadProgress(0);
@@ -571,7 +580,7 @@ export default function Home() {
               </div>
               <div className="feature-item">
                 <FileText size={18} />
-                <span>Upload PDFs and ask questions</span>
+                <span>Upload PDFs, DOCX, and TXT files to ask questions</span>
               </div>
               <div className="feature-item">
                 <Sparkles size={18} />
@@ -800,7 +809,7 @@ export default function Home() {
                 if (file && !uploading) uploadDocument(file);
               }}
               disabled={uploading}
-              aria-label="Upload PDF document"
+              aria-label="Upload document"
             >
               <span className={`upload-icon ${uploading && uploadStep !== "done" ? "upload-icon--spin" : ""} ${uploadStep === "done" ? "upload-icon--done" : ""}`}>
                 {uploadStep === "done" ? <Check size={21} /> : <UploadCloud size={21} />}
@@ -808,8 +817,8 @@ export default function Home() {
               <span className="upload-zone-text">
                 {!uploading && !uploadStep && (
                   <>
-                    <strong>{isDragOver ? "Drop to upload" : "Add a PDF"}</strong>
-                    <small>Drop it here or browse files</small>
+                    <strong>{isDragOver ? "Drop to upload" : "Add a document"}</strong>
+                    <small>PDF, DOCX, or TXT — drop it here or browse</small>
                   </>
                 )}
                 {uploading && uploadStep !== "done" && (
@@ -820,7 +829,7 @@ export default function Home() {
                       {uploadStep === "indexing" && "Building index…"}
                     </strong>
                     <small className="upload-step-label">
-                      {uploadStep === "reading" && "Parsing PDF structure"}
+                      {uploadStep === "reading" && "Parsing document"}
                       {uploadStep === "uploading" && "Sending to server"}
                       {uploadStep === "indexing" && "Generating embeddings"}
                     </small>
@@ -846,10 +855,10 @@ export default function Home() {
               )}
             </button>
 
-            <div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a PDF to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
+            <div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a document to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
         </div>
         {/* Hidden file input - always available for both paperclip and upload zone */}
-        <input ref={fileInput} type="file" accept="application/pdf" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadDocument(file); event.target.value = ""; }} />
+        <input ref={fileInput} type="file" accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,text/plain" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadDocument(file); event.target.value = ""; }} />
         {error && <button className="error-toast" onClick={() => setError("")}><X size={16} />{error}</button>}
       </section>
     </main>
