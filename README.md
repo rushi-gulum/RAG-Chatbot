@@ -777,6 +777,4 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 **⭐ Star this repository if you find it useful!**
 
-Made by the VW-Brain team
-
 </div>
