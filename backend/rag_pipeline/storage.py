@@ -642,6 +642,58 @@ class VectorStore:
             )
 
             return []
+    
+    def search_by_query_with_reranking(
+        self,
+        query: str,
+        embedder,
+        top_k: int = 5,
+        filter_criteria: Optional[Dict[str, Any]] = None,
+        document_ids: Optional[Union[str, List[str]]] = None,
+        rerank_multiplier: int = 3
+    ) -> List[Dict[str, Any]]:
+        """
+        Enhanced search with semantic reranking for improved precision
+        
+        Retrieves more chunks initially (top_k * rerank_multiplier) then uses 
+        a heuristic reranker to select the most semantically relevant ones.
+        """
+        try:
+            # Retrieve more chunks initially for reranking
+            initial_top_k = top_k * rerank_multiplier
+            
+            initial_results = self.search_by_query(
+                query=query,
+                embedder=embedder,
+                top_k=initial_top_k,
+                filter_criteria=filter_criteria,
+                document_ids=document_ids
+            )
+            
+            # If we have enough results, apply reranking
+            if len(initial_results) > top_k:
+                from rag_pipeline.reranker import HeuristicReranker
+                reranker = HeuristicReranker()
+                
+                logger.info(f"Reranking {len(initial_results)} chunks to find top {top_k}")
+                reranked_results = reranker.rerank(
+                    query=query,
+                    chunks=initial_results,
+                    top_k=top_k
+                )
+                return reranked_results
+            else:
+                return initial_results[:top_k]
+                
+        except Exception as e:
+            logger.error(f"Reranked search failed, falling back to standard search: {e}")
+            return self.search_by_query(
+                query=query,
+                embedder=embedder,
+                top_k=top_k,
+                filter_criteria=filter_criteria,
+                document_ids=document_ids
+            )
 
     def get_document_chunks(
         self,

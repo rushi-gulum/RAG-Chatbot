@@ -1,6 +1,6 @@
 """
-LLM Integration for RAG Pipeline using Groq API
-Supports Llama-3-8b-instant for generating responses from retrieved context
+LLM Integration for RAG Pipeline using Groq API with Production-Grade Resilience
+Supports multiple models with fallback routing and exponential backoff
 """
 
 import os
@@ -11,6 +11,8 @@ from groq import Groq
 import json
 from datetime import datetime
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import openai
 
 # Load environment variables
 load_dotenv()
@@ -55,6 +57,15 @@ class LLMGenerator:
             self.client = Groq(api_key=self.api_key)
             logger.info(f"Groq LLM initialized successfully with model: {self.model_name}")
             
+            # Initialize fallback client (OpenAI) if available
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if openai_api_key:
+                self.fallback_client = openai.OpenAI(api_key=openai_api_key)
+                self.fallback_model = "gpt-3.5-turbo"
+                logger.info("OpenAI fallback client initialized")
+            else:
+                self.fallback_client = None
+            
             # Test the connection
             self._test_connection()
             
@@ -74,6 +85,39 @@ class LLMGenerator:
             logger.info("Groq API connection test successful")
         except Exception as e:
             logger.warning(f"Groq API connection test failed: {str(e)}")
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((Exception,)),
+        reraise=True
+    )
+    def _generate_with_primary(self, messages: List[Dict[str, str]]) -> Any:
+        """Generate response using primary Groq client with exponential backoff"""
+        logger.info("Attempting generation with primary Groq client")
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            stream=False
+        )
+        return response
+    
+    def _generate_with_fallback(self, messages: List[Dict[str, str]]) -> Any:
+        """Generate response using fallback OpenAI client"""
+        if not self.fallback_client:
+            raise Exception("No fallback client available")
+        
+        logger.info("Using OpenAI fallback client")
+        response = self.fallback_client.chat.completions.create(
+            model=self.fallback_model,
+            messages=messages,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            stream=False
+        )
+        return response
     
     def generate_response(
         self, 
@@ -112,19 +156,29 @@ class LLMGenerator:
             # Create user prompt with query and context
             user_prompt = self._create_user_prompt(query, context)
             
-            # Generate response
+            # Generate response with resilience
             logger.info(f"Generating response for query: {query[:50]}...")
             
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-                stream=False
-            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            # Try primary client with retries, then fallback
+            try:
+                response = self._generate_with_primary(messages)
+                model_used = self.model_name
+            except Exception as primary_error:
+                logger.warning(f"Primary Groq client failed: {primary_error}")
+                if self.fallback_client:
+                    try:
+                        response = self._generate_with_fallback(messages)
+                        model_used = f"{self.fallback_model} (fallback)"
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback client also failed: {fallback_error}")
+                        raise Exception(f"Both primary and fallback failed: {primary_error}")
+                else:
+                    raise primary_error
             
             # Extract response
             generated_text = response.choices[0].message.content
@@ -145,7 +199,7 @@ class LLMGenerator:
             result = {
                 "response": generated_text,
                 "sources": sources,
-                "model_used": self.model_name,
+                "model_used": model_used,
                 "timestamp": datetime.now().isoformat(),
                 "token_usage": token_usage,
                 "query": query
