@@ -17,9 +17,15 @@ class DocumentService:
         return hashlib.sha256(file_content).hexdigest()
     
     @staticmethod
-    def is_document_processed(db: Session, filename: str, file_hash: str) -> bool:
-        """Check if document has already been processed"""
+    def is_document_processed(
+        db: Session,
+        filename: str,
+        file_hash: str,
+        user_id: str,
+    ) -> bool:
+        """Check whether this user has already processed this exact file."""
         document = db.query(ProcessedDocument).filter(
+            ProcessedDocument.user_id == user_id,
             ProcessedDocument.filename == filename,
             ProcessedDocument.file_hash == file_hash,
             ProcessedDocument.status == "processed"

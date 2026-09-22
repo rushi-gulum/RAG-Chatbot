@@ -1,0 +1,6 @@
+[
+  {
+    "query": "Replace this with a representative question from your documents.",
+    "expected_document_ids": ["replace-with-a-document-uuid"]
+  }
+]

@@ -100,12 +100,13 @@ class VectorStore:
             except Exception as e:
                 logger.warning(f"Could not create index for '{field}': {e}")
 
-    def _count(self) -> int:
+    def _count(self, query_filter=None) -> int:
         """Return the number of vectors in the collection."""
 
         result = self.client.count(
             collection_name=self.collection_name,
             exact=True,
+            count_filter=query_filter,
         )
 
         return result.count
@@ -114,6 +115,7 @@ class VectorStore:
         self,
         filename: str,
         file_content: bytes,
+        user_id: str,
         db: Session = None,
     ) -> bool:
 
@@ -125,6 +127,7 @@ class VectorStore:
                 return self._check_document_processed(
                     filename,
                     file_content,
+                    user_id,
                     db,
                 )
             finally:
@@ -133,6 +136,7 @@ class VectorStore:
         return self._check_document_processed(
             filename,
             file_content,
+            user_id,
             db,
         )
 
@@ -140,6 +144,7 @@ class VectorStore:
         self,
         filename: str,
         file_content: bytes,
+        user_id: str,
         db: Session,
     ) -> bool:
 
@@ -151,6 +156,7 @@ class VectorStore:
             db,
             filename,
             file_hash,
+            user_id,
         )
 
     def _clean_metadata(
@@ -617,10 +623,15 @@ class VectorStore:
                 embedder.embed_query(query)
             )
 
+            # A collection may contain data from previous embedding models.
+            # Never compare vectors produced by different models.
+            query_filter = dict(filter_criteria or {})
+            query_filter["embedding_model"] = embedder.model_name
+
             return self.search_similar_chunks(
                 query_embedding=query_embedding,
                 top_k=top_k,
-                filter_criteria=filter_criteria,
+                filter_criteria=query_filter,
                 document_ids=document_ids,
             )
 
@@ -635,11 +646,13 @@ class VectorStore:
     def get_document_chunks(
         self,
         document_id: str,
+        user_id: str,
     ) -> List[Dict[str, Any]]:
 
         try:
 
             query_filter = self._build_filter(
+                filter_criteria={"user_id": user_id},
                 document_ids=document_id
             )
 
@@ -832,16 +845,16 @@ class VectorStore:
                 "deleted_count": 0,
             }
 
-    def get_collection_stats(
-        self,
-    ) -> Dict[str, Any]:
+    def get_collection_stats(self, user_id: Optional[str] = None) -> Dict[str, Any]:
 
         try:
 
-            total_chunks = self._count()
+            query_filter = self._build_filter({"user_id": user_id}) if user_id else None
+            total_chunks = self._count(query_filter)
 
             records, _ = self.client.scroll(
                 collection_name=self.collection_name,
+                scroll_filter=query_filter,
                 limit=min(
                     100,
                     total_chunks,

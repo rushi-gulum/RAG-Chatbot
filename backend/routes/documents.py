@@ -1,10 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from pathlib import Path
 from sqlalchemy.orm import Session
 
 from database import get_db, DocumentService
 from auth.firebase_auth import require_auth
+from auth.middleware import rate_limit
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -13,7 +14,9 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 @router.post("/upload-pdf")
+@rate_limit("5/minute")
 async def upload_pdf(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_auth),
@@ -23,6 +26,7 @@ async def upload_pdf(
         from routes.rag import process_document_complete
 
         result = await process_document_complete(
+            request=request,
             file=file,
             document_id=None,
             db=db,
@@ -143,7 +147,7 @@ async def delete_document(
                     )
                 deletion_results["document_found"] = True
                 deletion_results["database"] = DocumentService.delete_document(
-                    db, file_id
+                    db, file_id, user_id
                 )
         except HTTPException:
             raise

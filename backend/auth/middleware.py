@@ -76,6 +76,10 @@ try:
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
         return limiter
+
+    def rate_limit(limit: str):
+        """Apply a SlowAPI limit when the optional dependency is available."""
+        return limiter.limit(limit)
         
 except ImportError:
     logger.warning("SlowAPI not available - rate limiting disabled")
@@ -84,3 +88,9 @@ except ImportError:
     def setup_rate_limiting(app):
         """Fallback rate limiting setup"""
         return None
+
+    def rate_limit(limit: str):
+        """No-op decorator when SlowAPI is not installed."""
+        def decorator(handler):
+            return handler
+        return decorator

@@ -25,7 +25,7 @@ class LLMGenerator:
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
         max_tokens: int = 1024,
-        temperature: float = 0.7
+        temperature: Optional[float] = None
     ):
         """
         Initialize Groq LLM for RAG response generation
@@ -38,7 +38,10 @@ class LLMGenerator:
         """
         self.model_name = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
         self.max_tokens = max_tokens
-        self.temperature = temperature
+        # Retrieval answers should be stable and grounded rather than creative.
+        self.temperature = temperature if temperature is not None else float(
+            os.getenv("GROQ_TEMPERATURE", "0.2")
+        )
         
         # Get API key
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
@@ -154,7 +157,7 @@ class LLMGenerator:
         except Exception as e:
             logger.error(f"Failed to generate response: {str(e)}")
             return {
-                "response": f"I encountered an error while generating a response: {str(e)}",
+                "response": "I couldn't generate an answer right now. Please try again.",
                 "sources": self._prepare_sources(retrieved_chunks),
                 "model_used": self.model_name,
                 "timestamp": datetime.now().isoformat(),
@@ -249,7 +252,7 @@ FORMAT YOUR RESPONSE:
 - Highlight important terms in **bold**.
 - Keep it concise but informative.
 - Add citations [1], [2], etc. after statements that reference specific sources.
-- If no relevant info found, state "No relevant info found in uploaded documents. Answer provided from general knowledge."
+- If no relevant information is available, state that you do not have enough information in the uploaded documents. Do not answer from general knowledge.
 
 STYLE:
 - Be professional but simple
@@ -310,18 +313,20 @@ Please answer the question based on the provided context."""
                 stream=True
             )
             
+            generated_parts = []
             for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
+                    generated_parts.append(chunk.choices[0].delta.content)
                     yield {
                         "content": chunk.choices[0].delta.content,
                         "done": False
                     }
             
-            # Send completion signal with sources
+            # Only return sources that the completed answer actually cited.
             yield {
                 "content": "",
                 "done": True,
-                "sources": self._prepare_sources(retrieved_chunks),
+                "sources": self._extract_cited_sources("".join(generated_parts), retrieved_chunks),
                 "model_used": self.model_name
             }
             

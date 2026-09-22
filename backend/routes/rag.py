@@ -1,8 +1,12 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import logging
 import uuid
+import os
+import zipfile
+from io import BytesIO
 from pathlib import Path
 import json
 from datetime import datetime
@@ -11,6 +15,7 @@ from sqlalchemy.orm import Session
 # Import database dependencies
 from database import get_db, DocumentService
 from auth.firebase_auth import require_auth
+from auth.middleware import rate_limit
 
 # Import RAG pipeline components
 try:
@@ -29,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 # Pydantic models for API
 class SearchQuery(BaseModel):
-    query: str
-    top_k: int = 5
+    query: str = Field(min_length=1, max_length=4_000)
+    top_k: int = Field(default=5, ge=1, le=10)
     document_id: Optional[str] = None  # Keep for backward compatibility
     document_ids: Optional[List[str]] = None  # New field for multiple document search
 
@@ -65,6 +70,39 @@ class CollectionStats(BaseModel):
 # Create router
 router = APIRouter(prefix="/rag", tags=["RAG Pipeline"])
 
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
+
+
+def _validate_upload(filename: str, content: bytes) -> tuple[str, str]:
+    """Validate file type and return a safe display name and extension."""
+    normalized_filename = filename.replace("\\", "/")
+    safe_filename = Path(normalized_filename).name
+    extension = Path(safe_filename).suffix.lower()
+
+    if not safe_filename or safe_filename != normalized_filename or extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported")
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit",
+        )
+    if extension == ".pdf" and not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="The uploaded file is not a valid PDF")
+    if extension == ".docx":
+        try:
+            with zipfile.ZipFile(BytesIO(content)) as archive:
+                names = set(archive.namelist())
+            if "[Content_Types].xml" not in names or "word/document.xml" not in names:
+                raise ValueError("Missing DOCX document entries")
+        except (zipfile.BadZipFile, ValueError):
+            raise HTTPException(status_code=400, detail="The uploaded file is not a valid DOCX document")
+
+    return safe_filename, extension
+
 # Initialize RAG components lazily so a transient Qdrant connection failure
 # at import time does not crash the entire application on startup.
 doc_processor = None
@@ -93,7 +131,7 @@ except Exception as e:
     logging.warning(f"LLMGenerator init failed: {e}")
 
 @router.get("/status")
-async def get_rag_status():
+async def get_rag_status(current_user: dict = Depends(require_auth)):
     """Get RAG pipeline status and availability"""
     return {
         "preprocessing": doc_processor is not None,
@@ -103,11 +141,13 @@ async def get_rag_status():
         "dependencies_installed": all([doc_processor, embedder, vector_store]),
         "llm_available": llm_generator is not None,
         "embedding_model": embedder.model_name if embedder else None,
-        "collection_stats": vector_store.get_collection_stats() if vector_store else None
+        "collection_stats": vector_store.get_collection_stats(current_user["uid"]) if vector_store else None
     }
 
 @router.post("/process-document", response_model=ProcessingStatus)
+@rate_limit("5/minute")
 async def process_document_complete(
+    request: Request,
     file: UploadFile = File(...),
     document_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
@@ -123,21 +163,22 @@ async def process_document_complete(
             detail="RAG pipeline not available. Please install dependencies: pip install chromadb torch transformers"
         )
     
-    ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.txt'}
-    if not file.filename or Path(file.filename).suffix.lower() not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF, DOCX, and TXT files are supported")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="A filename is required")
     
     try:
         # Read file content for hash checking
         content = await file.read()
         file_size = len(content)
+        safe_filename, extension = _validate_upload(file.filename, content)
+        user_id = current_user["uid"]
         
-        # Check if document is already processed
-        if vector_store.is_document_already_processed(file.filename, content, db):
-            logger.info(f"Document '{file.filename}' already processed, skipping RAG pipeline")
+        # Deduplicate only within the authenticated user's own library.
+        if vector_store.is_document_already_processed(safe_filename, content, user_id, db):
+            logger.info("Document already processed for the current user")
             return ProcessingStatus(
                 status="already_processed",
-                message=f"Document '{file.filename}' was already processed and stored",
+                message=f"Document '{safe_filename}' was already processed and stored",
                 chunks_processed=0,
                 chunks_embedded=0
             )
@@ -145,19 +186,19 @@ async def process_document_complete(
         # Generate document ID if not provided
         doc_id = document_id or str(uuid.uuid4())
         
-        # Save uploaded file temporarily
-        upload_path = Path("uploads") / file.filename
-        upload_path.parent.mkdir(exist_ok=True)
+        # Never use a client-controlled filename as a filesystem path.
+        UPLOADS_DIR.mkdir(exist_ok=True)
+        upload_path = UPLOADS_DIR / f"{uuid.uuid4()}{extension}"
         
         with open(upload_path, "wb") as buffer:
             buffer.write(content)
         
         # Step 1: Process document into chunks
-        logger.info(f"Processing document: {file.filename}")
+        logger.info("Processing uploaded document")
         chunks = doc_processor.process_document(
             str(upload_path), 
             doc_id, 
-            file.filename
+            safe_filename
         )
         
         if not chunks:
@@ -170,11 +211,10 @@ async def process_document_complete(
         
         # Step 3: Store in vector database with database tracking
         logger.info(f"Storing {embedded_count} embedded chunks")
-        user_id = current_user["uid"]
         storage_result = vector_store.store_embedded_chunks(
             embedded_chunks, 
             document_id=doc_id,
-            filename=file.filename,
+            filename=safe_filename,
             file_content=content,
             file_size=file_size,
             db=db,
@@ -193,6 +233,8 @@ async def process_document_complete(
             chunks_stored=storage_result.get("stored_chunks", 0)
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Document processing failed: {str(e)}")
         # Clean up on error
@@ -205,7 +247,9 @@ async def process_document_complete(
         )
 
 @router.post("/search", response_model=List[SearchResult])
+@rate_limit("30/minute")
 async def search_documents(
+    request: Request,
     query: SearchQuery,
     current_user: dict = Depends(require_auth)
 ):
@@ -232,8 +276,7 @@ async def search_documents(
         # Add user_id filtering for data isolation
         user_id = current_user["uid"]
         
-        # For backward compatibility, also search legacy documents without user_id
-        # First try user-specific documents
+        # Every search is scoped to the authenticated user's vectors.
         user_filter = {"user_id": user_id}
         
         # Perform search with user filtering
@@ -245,26 +288,7 @@ async def search_documents(
             document_ids=document_filter
         )
         
-        # STRICT MODE: If specific documents were selected, don't fall back to other documents
-        # Only fall back to legacy documents if NO document filter was specified
-        if not results and not document_filter:
-            try:
-                logger.info("No user documents found, searching legacy documents")
-                # Search documents that don't have user_id (legacy documents)
-                legacy_results = vector_store.search_by_query(
-                    query=query.query,
-                    embedder=embedder,
-                    top_k=query.top_k,
-                    filter_criteria=None,  # No user filter for legacy
-                    document_ids=None
-                )
-                # Filter out any results that do have user_id (keep only true legacy)
-                results = [r for r in legacy_results if not r.get('metadata', {}).get('user_id')]
-                logger.info(f"Found {len(results)} legacy document results")
-            except Exception as e:
-                logger.warning(f"Legacy document search failed: {e}")
-                results = []
-        elif document_filter and not results:
+        if document_filter and not results:
             logger.info(f"No results found in selected documents: {document_filter}")
         
         # Format results
@@ -287,7 +311,9 @@ async def search_documents(
         )
 
 @router.post("/search-llm", response_model=LLMResponse)
+@rate_limit("15/minute")
 async def search_documents_with_llm(
+    request: Request,
     query: SearchQuery,
     current_user: dict = Depends(require_auth)
 ):
@@ -324,23 +350,7 @@ async def search_documents_with_llm(
             document_ids=document_filter
         )
         
-        # STRICT MODE: If specific documents were selected, don't fall back to other documents
-        # Only fall back to legacy documents if NO document filter was specified
-        if not results and not document_filter:
-            try:
-                logger.info("No user documents found for LLM search, trying legacy documents")
-                legacy_results = vector_store.search_by_query(
-                    query=query.query,
-                    embedder=embedder,
-                    top_k=query.top_k,
-                    filter_criteria=None,
-                    document_ids=None
-                )
-                results = [r for r in legacy_results if not r.get('metadata', {}).get('user_id')]
-                logger.info(f"Found {len(results)} legacy document results for LLM")
-            except Exception as e:
-                logger.warning(f"Legacy document search failed: {e}")
-        elif document_filter and not results:
+        if document_filter and not results:
             logger.info(f"No results found in selected documents for LLM: {document_filter}")
         
         # If still no results and specific documents were selected, provide helpful message
@@ -378,8 +388,42 @@ async def search_documents_with_llm(
             detail=f"LLM search failed: {str(e)}"
         )
 
+
+@router.post("/search-llm/stream")
+@rate_limit("15/minute")
+async def stream_search_documents_with_llm(
+    request: Request,
+    query: SearchQuery,
+    current_user: dict = Depends(require_auth),
+):
+    """Stream a tenant-scoped RAG response as Server-Sent Events."""
+    if not all([embedder, vector_store, llm_generator]):
+        raise HTTPException(status_code=503, detail="RAG+LLM search is not available")
+
+    document_filter = query.document_ids or query.document_id
+    results = vector_store.search_by_query(
+        query=query.query,
+        embedder=embedder,
+        top_k=query.top_k,
+        filter_criteria={"user_id": current_user["uid"]},
+        document_ids=document_filter,
+    )
+
+    def event_stream():
+        for event in llm_generator.generate_streaming_response(query.query, results):
+            yield f"data: {json.dumps(event)}\\n\\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 @router.get("/documents/{document_id}/chunks")
-async def get_document_chunks(document_id: str):
+async def get_document_chunks(
+    document_id: str,
+    current_user: dict = Depends(require_auth),
+):
     """
     Get all chunks for a specific document
     """
@@ -390,7 +434,7 @@ async def get_document_chunks(document_id: str):
         )
     
     try:
-        chunks = vector_store.get_document_chunks(document_id)
+        chunks = vector_store.get_document_chunks(document_id, current_user["uid"])
         return {
             "document_id": document_id,
             "chunk_count": len(chunks),
@@ -437,7 +481,7 @@ async def delete_document_from_storage(
         )
 
 @router.get("/collection/stats", response_model=CollectionStats)
-async def get_collection_statistics():
+async def get_collection_statistics(current_user: dict = Depends(require_auth)):
     """
     Get vector collection statistics
     """
@@ -448,7 +492,7 @@ async def get_collection_statistics():
         )
     
     try:
-        stats = vector_store.get_collection_stats()
+        stats = vector_store.get_collection_stats(current_user["uid"])
         
         if "error" in stats:
             raise HTTPException(status_code=500, detail=stats["error"])
@@ -519,15 +563,5 @@ async def rag_health_check():
     
     if embedder:
         health_status["embedding_info"] = embedder.get_model_info()
-    
-    if vector_store:
-        try:
-            stats = vector_store.get_collection_stats()
-            health_status["collection_info"] = {
-                "total_chunks": stats.get("total_chunks", 0),
-                "unique_documents": stats.get("unique_documents", 0)
-            }
-        except Exception:
-            health_status["collection_info"] = {"error": "Could not retrieve stats"}
     
     return health_status
