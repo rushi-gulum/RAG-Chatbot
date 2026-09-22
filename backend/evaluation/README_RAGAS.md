@@ -1,20 +1,20 @@
 # RAGAS Evaluation System
 
-RAGAS (Retrieval-Augmented Generation Assessment) is an advanced evaluation framework for RAG systems that uses LLMs to provide reference-free evaluation.
+RAGAS (Retrieval-Augmented Generation Assessment) is an advanced evaluation framework for RAG systems that provides reference-free evaluation using heuristic text similarity metrics.
 
 ## 🎯 RAGAS Metrics
 
 ### 1. **Faithfulness**
 - **What it measures**: Factual consistency between the generated answer and retrieved context
 - **Scale**: 0.0 (completely unfaithful) to 1.0 (completely faithful)  
-- **Good score**: ≥ 0.8
-- **Improvement tips**: Better prompting, higher quality source documents
+- **Good score**: ≥ 0.7
+- **Method**: TF-IDF similarity and word overlap analysis between answer and context
 
 ### 2. **Answer Relevancy**  
 - **What it measures**: How well the answer addresses the original query
 - **Scale**: 0.0 (irrelevant) to 1.0 (perfectly relevant)
-- **Good score**: ≥ 0.8  
-- **Improvement tips**: Better query understanding, improved answer generation
+- **Good score**: ≥ 0.6  
+- **Method**: Keyword overlap and semantic similarity between question and answer
 
 ### 3. **Context Precision**
 - **What it measures**: Relevance of retrieved context chunks to the query

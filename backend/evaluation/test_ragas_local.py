@@ -20,18 +20,19 @@ from evaluation.ragas_evaluation import RAGPipelineEvaluator, print_ragas_report
 async def test_ragas_evaluation():
     """Test RAGAS evaluation with sample queries"""
     
-    # Sample test queries - replace with your own
+    # Sample test queries - updated to match actual documents in database
     test_queries = [
-        "What is artificial intelligence?",
-        "How does machine learning work?", 
-        "What are neural networks?",
-        "Explain deep learning concepts",
-        "What is natural language processing?"
+        "What is LinkedIn growth strategy?",
+        "How to optimize LinkedIn for tech professionals?", 
+        "What are the Airbnb business model insights?",
+        "What are the training report requirements?",
+        "How to build technical authority on LinkedIn?"
     ]
     
-    # Use your Firebase UID - get this from your authentication
+    # Use a real user ID that has documents - get this from your authentication
     # You can find it in the browser console when logged in: user.uid
-    user_id = "test-user-123"  # Replace with your actual Firebase UID
+    # Using one of the user IDs that actually has documents in the database
+    user_id = "BPjsXjxGMIQByQDBatN6kJ9b3sv2"  # This user has LinkedIn and other documents
     
     print("🧪 Testing RAGAS Evaluation System")
     print("=" * 50)
@@ -182,7 +183,7 @@ async def test_ragas_evaluation():
             "avg_context_recall": avg_context_recall,
             "overall_ragas_score": overall_score,
             "individual_results": results
-        }, indent=2, default=str)
+        }, f, indent=2, default=str)
     
     print(f"\n💾 Results saved to: {output_file}")
     print("=" * 50)
