@@ -26,6 +26,7 @@ from database import init_database
 # Import routes
 from routes.documents import router as documents_router
 from api.chat_routes import router as chat_router
+from routes.evaluation import router as evaluation_router
 
 # Import RAG routes (gracefully handle if dependencies not installed)
 try:
@@ -103,6 +104,7 @@ else:
 # Include routers
 app.include_router(documents_router)
 app.include_router(chat_router)
+app.include_router(evaluation_router)
 
 # Include RAG router if available
 if rag_available and rag_router:

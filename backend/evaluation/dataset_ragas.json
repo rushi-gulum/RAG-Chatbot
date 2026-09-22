@@ -1,0 +1,27 @@
+[
+  {
+    "question": "What is artificial intelligence?",
+    "expected_document_ids": ["doc-uuid-1"],
+    "reference_answer": "Artificial intelligence (AI) is the simulation of human intelligence in machines that are programmed to think and learn like humans."
+  },
+  {
+    "question": "How does machine learning work?",
+    "expected_document_ids": ["doc-uuid-2"],
+    "reference_answer": "Machine learning works by training algorithms on large datasets to identify patterns and make predictions or decisions without being explicitly programmed for each specific task."
+  },
+  {
+    "question": "What are the main types of neural networks?",
+    "expected_document_ids": ["doc-uuid-3"],
+    "reference_answer": "The main types of neural networks include feedforward networks, convolutional neural networks (CNNs), recurrent neural networks (RNNs), and transformer networks."
+  },
+  {
+    "question": "Explain the concept of deep learning",
+    "expected_document_ids": ["doc-uuid-1", "doc-uuid-2"],
+    "reference_answer": "Deep learning is a subset of machine learning that uses artificial neural networks with multiple layers (deep networks) to model and understand complex patterns in data."
+  },
+  {
+    "question": "What is natural language processing?",
+    "expected_document_ids": ["doc-uuid-4"],
+    "reference_answer": "Natural language processing (NLP) is a branch of AI that helps computers understand, interpret, and manipulate human language in a way that is both meaningful and useful."
+  }
+]

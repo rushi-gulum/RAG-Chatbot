@@ -1,0 +1,17 @@
+# Additional dependencies for RAGAS evaluation
+# Install with: pip install -r evaluation/requirements_ragas.txt
+
+# Core RAGAS dependencies (optional - can use built-in implementation)
+# ragas>=0.1.0
+
+# For advanced evaluation metrics (optional)
+rouge-score>=0.1.2
+sacrebleu>=2.3.1
+bert-score>=0.3.13
+
+# For statistical analysis
+scipy>=1.9.0
+scikit-learn>=1.2.0
+
+# For async evaluation
+aiofiles>=23.1.0
