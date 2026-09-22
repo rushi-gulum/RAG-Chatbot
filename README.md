@@ -45,6 +45,12 @@ A **production-ready Retrieval-Augmented Generation (RAG)** system that combines
 - **Multi-document filtering**: Search across selected documents or entire library
 - **Cosine similarity ranking**: Top-K retrieval with configurable thresholds
 
+### 📊 RAGAS Evaluation System
+- **Comprehensive metrics**: Faithfulness, Answer Relevancy, Context Precision, Context Recall
+- **Heuristic-based evaluation**: TF-IDF similarity and keyword overlap analysis
+- **Performance tracking**: JSON export for monitoring and improvement
+- **Production insights**: Detailed recommendations for system optimization
+
 ### 🤖 AI-Powered Response Generation
 - **Groq LLM integration**: Fast inference with `openai/gpt-oss-20b` model
 - **Context-aware prompting**: Injects retrieved chunks with source attribution
@@ -122,6 +128,7 @@ graph TB
 | **Embeddings** | Cloudflare Workers AI | BGE-small-en-v1.5 hosted model (384-dim) |
 | **LLM** | Groq API | `openai/gpt-oss-20b` for fast inference |
 | **PDF Processing** | PyPDF2 3.0.1 | Text extraction with page-level metadata |
+| **Evaluation** | RAGAS + scikit-learn | Heuristic-based RAG system assessment |
 | **Security** | SlowAPI 0.1.9 + bcrypt 4.3 | Rate limiting and password hashing |
 
 #### Frontend Stack
@@ -286,6 +293,16 @@ Please answer the question based on the provided context.
 | **End-to-End Response Time** | < 3s | 1.5-2.0s | ✅ Meets |
 | **Embedding Generation** | < 50ms/batch | ~20ms | ✅ Exceeds |
 | **LLM Inference** | < 2s | ~800ms | ✅ Exceeds |
+
+### RAGAS Evaluation Metrics
+
+| Metric | Current | Target | Status |
+|--------|---------|---------|--------|
+| **Faithfulness** | 0.528 | ≥ 0.70 | ⚠️ Needs Improvement |
+| **Answer Relevancy** | 0.317 | ≥ 0.60 | ❌ Requires Work |
+| **Context Precision** | 0.286 | ≥ 0.60 | ❌ Requires Work |
+| **Context Recall** | 0.464 | ≥ 0.70 | ⚠️ Needs Improvement |
+| **Overall RAGAS Score** | 0.399 | ≥ 0.65 | ❌ Under Development |
 
 ### Scaling Characteristics
 
@@ -728,7 +745,7 @@ def _create_casual_prompt(self) -> str:
 - 🌍 **Multi-language support:** I18n for UI and multilingual embeddings
 - 📱 **Mobile app:** React Native client with offline mode
 - 🔌 **Integrations:** Notion, Google Drive, Confluence connectors
-- 🧪 **Evaluation suite:** Automated NDCG/MRR/Recall testing with benchmark datasets
+- 🧪 **Evaluation suite:** RAGAS framework with comprehensive RAG quality metrics
 
 ---
 ## 📚 References & Further Reading

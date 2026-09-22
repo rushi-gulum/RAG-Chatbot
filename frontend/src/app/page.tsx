@@ -30,6 +30,33 @@ async function apiRequest(path: string, options: RequestInit = {}, user?: User |
   return body;
 }
 
+async function streamRagAnswer(
+  payload: object,
+  user: User | null | undefined,
+  onDelta: (content: string) => void,
+): Promise<{ content: string; sources: Source[] }> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (user) headers.set("Authorization", `Bearer ${await user.getIdToken()}`);
+  const response = await fetch(`${API_URL}/rag/search-llm`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || "The assistant could not start a response.");
+  }
+
+  const result = await response.json();
+  const content = result.response || "";
+  const sources = result.sources || [];
+  
+  // Simulate streaming by calling onDelta with the full content
+  onDelta(content);
+  
+  return { content, sources };
+}
+
 function formatBytes(bytes: number) {
   return bytes ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : "Document";
 }
@@ -454,6 +481,7 @@ export default function Home() {
   const submitQuery = async () => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery || busy) return;
+    let assistantMessageId: string | null = null;
     const userMessage = { id: crypto.randomUUID(), type: "user" as const, content: trimmedQuery };
     setMessages((current) => [...current, userMessage]);
     setQuery(""); setBusy(true); setError("");
@@ -471,19 +499,31 @@ export default function Home() {
         method: "POST",
         body: JSON.stringify({ content: trimmedQuery, message_type: "user" }),
       }, user);
-      const data = await apiRequest("/rag/search-llm", {
-        method: "POST",
-        body: JSON.stringify({ query: trimmedQuery, top_k: 5, document_ids: selectedDocuments.length ? selectedDocuments : null }),
-      }, user);
-      const assistantContent = cleanAssistantResponse(data.response);
-      const assistantMessage = { id: crypto.randomUUID(), type: "assistant" as const, content: assistantContent, sources: data.sources || [] };
-      setMessages((current) => [...current, assistantMessage]);
+      const newAssistantMessageId = crypto.randomUUID();
+      assistantMessageId = newAssistantMessageId;
+      setMessages((current) => [...current, { id: newAssistantMessageId, type: "assistant", content: "" }]);
+      const data = await streamRagAnswer(
+        { query: trimmedQuery, top_k: 5, document_ids: selectedDocuments.length ? selectedDocuments : null },
+        user,
+        (content) => setMessages((current) => current.map((message) =>
+          message.id === newAssistantMessageId ? { ...message, content: cleanAssistantResponse(content) } : message
+        )),
+      );
+      const assistantContent = cleanAssistantResponse(data.content);
+      setMessages((current) => current.map((message) =>
+        message.id === newAssistantMessageId ? { ...message, content: assistantContent, sources: data.sources } : message
+      ));
       await apiRequest(`/chat/sessions/${sessionId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content: assistantContent, message_type: "assistant", sources: data.sources || [] }),
+        body: JSON.stringify({ content: assistantContent, message_type: "assistant", sources: data.sources }),
       }, user);
       await loadSessions();
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "The assistant could not answer."); }
+    } catch (requestError) {
+      if (assistantMessageId) {
+        setMessages((current) => current.filter((message) => message.id !== assistantMessageId));
+      }
+      setError(requestError instanceof Error ? requestError.message : "The assistant could not answer.");
+    }
     finally { setBusy(false); }
   };
 

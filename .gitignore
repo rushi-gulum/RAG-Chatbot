@@ -80,6 +80,21 @@ evaluation_results*.json
 backend/evaluation_results*.json
 test-simple.pdf
 backend/test-simple.pdf
+ragas_test_results*.json
+backend/evaluation/ragas_test_results*.json
+
+# Debug and temporary test files
+debug_*.py
+backend/debug_*.py
+diagnostic_*.py
+backend/diagnostic_*.py
+test_*.py
+backend/test_*.py
+backend/evaluation/test_*.py
+
+# RAGAS evaluation temporary files
+backend/evaluation/test_groq_response.py
+backend/evaluation/test_ragas_single.py
 
 # Coverage reports
 htmlcov/
@@ -99,6 +114,12 @@ coverage.xml
 # Helper scripts (can be re-run, not needed in repo)
 get_test_token.py
 backend/get_test_token.py
+fix_qdrant_indexes.py
+backend/fix_qdrant_indexes.py
+
+# One-time utility scripts
+backend/*_fix.py
+backend/*_debug.py
 
 # Jupyter Notebook
 .ipynb_checkpoints
