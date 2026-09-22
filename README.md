@@ -298,11 +298,11 @@ Please answer the question based on the provided context.
 
 | Metric | Current | Target | Status |
 |--------|---------|---------|--------|
-| **Faithfulness** | 0.528 | ≥ 0.70 | ⚠️ Needs Improvement |
-| **Answer Relevancy** | 0.317 | ≥ 0.60 | ❌ Requires Work |
-| **Context Precision** | 0.286 | ≥ 0.60 | ❌ Requires Work |
-| **Context Recall** | 0.464 | ≥ 0.70 | ⚠️ Needs Improvement |
-| **Overall RAGAS Score** | 0.399 | ≥ 0.65 | ❌ Under Development |
+| **Faithfulness** | 0.599 | ≥ 0.70 |  Approaching Target |
+| **Answer Relevancy** | 0.480 | ≥ 0.60 |  Improved, Approaching Target |
+| **Context Precision** | 0.418 | ≥ 0.60 |  Enhanced, Still Improving |
+| **Context Recall** | 0.529 | ≥ 0.70 |  Significantly Improved |
+| **Overall RAGAS Score** | 0.506 | ≥ 0.65 |  Major Improvement (+27%) |
 
 ### Scaling Characteristics
 
