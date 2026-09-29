@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: rag-chatbot-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # Environment variables to be set in Render Dashboard:
+      # - FIREBASE_PROJECT_ID
+      # - GOOGLE_APPLICATION_CREDENTIALS_JSON
+      # - GROQ_API_KEY  
+      # - OPENAI_API_KEY
+      # - CLOUDFLARE_ACCOUNT_ID
+      # - CLOUDFLARE_API_TOKEN
+      # - QDRANT_URL
+      # - QDRANT_API_KEY
+      # - DATABASE_URL
+      # - SECRET_KEY
+      # - FRONTEND_URL
+      # - ALLOWED_ORIGINS
+    healthCheckPath: /health
+    disk:
+      name: backend-storage
+      mountPath: /opt/render/project/uploads
+      sizeGB: 1

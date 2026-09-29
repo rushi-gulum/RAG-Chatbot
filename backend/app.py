@@ -116,11 +116,24 @@ async def home():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with CORS info"""
+    """Production-ready health check endpoint"""
+    try:
+        # Test database connection (basic check)
+        from database.database import get_db_session
+        with get_db_session() as session:
+            session.execute("SELECT 1")
+        
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)[:100]}"
+    
     return {
         "status": "healthy",
-        "cors_enabled": True,
-        "allowed_origins": allowed_origins if os.getenv("NODE_ENV") == "production" else ["*"],
+        "environment": os.getenv("NODE_ENV", "development"),
+        "version": "1.0.0",
+        "database": db_status,
+        "rag_pipeline": "available" if rag_available else "unavailable", 
+        "security": "enabled" if security_available else "disabled",
         "timestamp": datetime.now().isoformat()
     }
 
