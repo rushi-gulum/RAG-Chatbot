@@ -38,7 +38,7 @@ class LLMGenerator:
             max_tokens: Maximum tokens in response
             temperature: Response creativity (0.0 = deterministic, 1.0 = creative)
         """
-        self.model_name = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+        self.model_name = model_name or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         self.max_tokens = max_tokens
         # Retrieval answers should be stable and grounded rather than creative.
         self.temperature = temperature if temperature is not None else float(
@@ -84,7 +84,7 @@ class LLMGenerator:
             )
             logger.info("Groq API connection test successful")
         except Exception as e:
-            logger.warning(f"Groq API connection test failed: {str(e)}")
+            logger.debug(f"Groq API connection test failed: {str(e)}")
     
     @retry(
         stop=stop_after_attempt(3),
@@ -216,7 +216,8 @@ class LLMGenerator:
                 "model_used": self.model_name,
                 "timestamp": datetime.now().isoformat(),
                 "token_usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                "error": str(e)
+                "error": str(e),
+                "llm_failure": True
             }
     
     def _prepare_context(self, chunks: List[Dict[str, Any]]) -> str:

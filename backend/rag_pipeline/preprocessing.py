@@ -14,7 +14,7 @@ except ImportError:
     _DOCX_AVAILABLE = False
 
 class DocumentProcessor:
-    def __init__(self, chunk_size=500, chunk_overlap=50, max_tokens_per_chunk=512):
+    def __init__(self, chunk_size=350, chunk_overlap=50, max_tokens_per_chunk=512):
         """
         Initialize document processor for RAG pipeline
         
@@ -107,6 +107,33 @@ class DocumentProcessor:
         text = re.sub(r"[‘’]", "'", text)
         text = re.sub(r'[“”]', '"', text)
 
+        # Fix PDF line-break hyphenation artifacts (e.g. "profes- sional" -> "professional")
+        text = re.sub(
+            r'([A-Za-z]{2,})-\s+([a-z]{2,})',
+            lambda m: m.group(1) + m.group(2),
+            text
+        )
+
+        # Fix OCR word-split artifacts common in PyPDF2 output
+        # e.g. "Mos t" -> "Most", "Templa te" -> "Template"
+        _COMMON_WORDS = {
+            'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
+            'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how',
+            'its', 'may', 'now', 'own', 'see', 'two', 'use', 'way', 'who', 'did',
+            'let', 'put', 'say', 'too', 'any', 'new', 'try', 'via', 'per', 'off',
+        }
+        text = re.sub(
+            r'\b([A-Za-z]{2,5})\s+([a-z]{2,5})\b',
+            lambda m: (
+                m.group(1) + m.group(2)
+                if m.group(2) not in _COMMON_WORDS
+                else m.group(0)
+            ),
+            text
+        )
+
+        # Remove double spaces from above substitutions
+        text = re.sub(r'  +', ' ', text)
         
         # Strip leading/trailing whitespace
         text = text.strip()

@@ -1,27 +1,52 @@
 [
   {
-    "question": "What is artificial intelligence?",
-    "expected_document_ids": ["doc-uuid-1"],
-    "reference_answer": "Artificial intelligence (AI) is the simulation of human intelligence in machines that are programmed to think and learn like humans."
+    "question": "What is the Value Add Commenter strategy and how does it help grow a LinkedIn audience?",
+    "expected_document_ids": [],
+    "reference_answer": "The Value Add Commenter strategy involves leaving 10 to 20 thoughtful, multi-sentence comments daily on larger accounts in your niche. Each comment should compliment the premise, expand on a technical point with personal insight, and ask a thought-provoking follow-up question. This results in a 55% increase in profile views and a 20% reach boost on subsequent posts."
   },
   {
-    "question": "How does machine learning work?",
-    "expected_document_ids": ["doc-uuid-2"],
-    "reference_answer": "Machine learning works by training algorithms on large datasets to identify patterns and make predictions or decisions without being explicitly programmed for each specific task."
+    "question": "How does the LinkedIn 360Brew algorithm distribute content to users?",
+    "expected_document_ids": [],
+    "reference_answer": "The 360Brew algorithm distributes up to 60% of a post's initial reach to interest-based clusters outside the creator's immediate network, based on semantic topical relevance rather than social proximity. It uses a 150-billion-parameter architecture built on Mixtral 8x22B."
   },
   {
-    "question": "What are the main types of neural networks?",
-    "expected_document_ids": ["doc-uuid-3"],
-    "reference_answer": "The main types of neural networks include feedforward networks, convolutional neural networks (CNNs), recurrent neural networks (RNNs), and transformer networks."
+    "question": "What are the three slots in the LinkedIn Featured Section and what should go in each?",
+    "expected_document_ids": [],
+    "reference_answer": "Slot 1 is the System Proof containing your best deployed project with metrics. Slot 2 is the Thinking Proof showing your highest-engagement LinkedIn post. Slot 3 is the Visual Proof such as an architecture diagram or cost analysis."
   },
   {
-    "question": "Explain the concept of deep learning",
-    "expected_document_ids": ["doc-uuid-1", "doc-uuid-2"],
-    "reference_answer": "Deep learning is a subset of machine learning that uses artificial neural networks with multiple layers (deep networks) to model and understand complex patterns in data."
+    "question": "What posting frequency is recommended during the LinkedIn growth phase of 1000 to 10000 followers?",
+    "expected_document_ids": [],
+    "reference_answer": "Posting 3 to 4 times per week yields significantly higher cumulative reach than daily posting. Publishing multiple times within a 24-hour window is actively penalized."
   },
   {
-    "question": "What is natural language processing?",
-    "expected_document_ids": ["doc-uuid-4"],
-    "reference_answer": "Natural language processing (NLP) is a branch of AI that helps computers understand, interpret, and manipulate human language in a way that is both meaningful and useful."
+    "question": "What is the 5-Block Framework for writing a LinkedIn About section?",
+    "expected_document_ids": [],
+    "reference_answer": "The 5-Block Framework consists of: Block 1 the Hook with a contrarian insight; Block 2 the Proof with specific measurable examples; Block 3 the Method describing your thinking approach; Block 4 the Stack listing technical capabilities; Block 5 the CTA. Total should be 150 to 250 words."
+  },
+  {
+    "question": "What headline formula should technical professionals use on LinkedIn?",
+    "expected_document_ids": [],
+    "reference_answer": "The headline must contain outcome plus audience plus proof metric. It should be specific enough that someone knows exactly what outcome you deliver."
+  },
+  {
+    "question": "How should Phase 1 LinkedIn outreach messages be structured?",
+    "expected_document_ids": [],
+    "reference_answer": "Phase 1 messages should reference specific shared interests or technical questions, express curiosity about the person's work, share your current understanding, and ask if your thinking is correct. Never directly ask for a job."
+  },
+  {
+    "question": "What is the 24-hour resurrection trick for LinkedIn posts?",
+    "expected_document_ids": [],
+    "reference_answer": "The 24-hour resurrection trick involves replying to older comments on yesterday's post to trigger secondary reach by reactivating algorithmic distribution through fresh engagement signals."
+  },
+  {
+    "question": "What are the stages of LinkedIn content distribution for a new post?",
+    "expected_document_ids": [],
+    "reference_answer": "The process starts with Pre-Ranking Retrieval, then Stage 1 Quality Filtering checking for spam and engagement bait, then Stage 2 Initial Audience Test with small distribution, then broader amplification based on engagement signals."
+  },
+  {
+    "question": "What content types should be posted in the first three months of a LinkedIn growth strategy?",
+    "expected_document_ids": [],
+    "reference_answer": "Month 1 to 3 should focus on confusion posts describing learning experiences and mistake posts documenting errors and lessons. The primary focus is on the Value Add Commenter strategy and profile optimization before publishing original content."
   }
 ]

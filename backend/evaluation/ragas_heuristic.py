@@ -114,7 +114,7 @@ class HeuristicRAGASEvaluator:
             elif len(answer.split()) < 5:
                 length_penalty = 0.5
             
-            relevancy = (0.4 * overlap_score + 0.6 * similarity) * length_penalty
+            relevancy = (0.7 * overlap_score + 0.3 * similarity) * length_penalty
             
             return max(0.0, min(1.0, relevancy))
             

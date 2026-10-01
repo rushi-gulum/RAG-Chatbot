@@ -258,8 +258,11 @@ async def run_comprehensive_evaluation(dataset_path: Path, user_id: str,
     for i, example in enumerate(dataset, 1):
         print(f"Evaluating query {i}/{len(dataset)}: {example['query'][:50]}...")
         
-        query = example["query"]
-        expected_doc_ids = example["expected_document_ids"]
+        query = example.get("question") or example.get("query", "")
+        if not query:
+            logging.warning(f"Skipping example at index {i}: missing 'question' or 'query' key")
+            continue
+        expected_doc_ids = example.get("expected_document_ids", [])
         reference_answer = example.get("reference_answer")
         
         result = evaluator.evaluate_pipeline(
@@ -287,8 +290,8 @@ async def run_comprehensive_evaluation(dataset_path: Path, user_id: str,
                        for k in [1, 3, 5, 10]},
         recall_at_k={k: safe_mean([r.get(f"recall_at_{k}", 0) for r in all_results]) 
                     for k in [1, 3, 5, 10]},
-        ndcg_at_k={k: safe_mean([r.get("ndcg", 0) for r in all_results]) 
-                  for k in [1, 3, 5, 10]},  # Simplified for now
+        ndcg_at_k={k: safe_mean([r.get(f"ndcg_at_{k}", r.get("ndcg", 0)) for r in all_results])
+                  for k in [1, 3, 5, 10]},
         mrr=safe_mean([r.get("mrr", 0) for r in all_results]),
         
         # Generation metrics (if available)

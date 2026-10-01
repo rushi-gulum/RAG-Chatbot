@@ -77,7 +77,7 @@ class RAGASEvaluator:
     def __init__(self, evaluation_llm_client=None):
         """Initialize RAGAS evaluator with LLM client for evaluation"""
         self.evaluation_llm = evaluation_llm_client or Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.model_name = "openai/gpt-oss-20b"  # Using publicly available Groq model
+        self.model_name = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Stable Groq model
         
         # Initialize heuristic evaluator as fallback
         try:
@@ -373,13 +373,33 @@ class RAGPipelineEvaluator:
             }
         
         # 2. Generate answer
+        response = {}
         try:
             response = self.llm_generator.generate_response(question, results)
             answer = response.get("response", "")
         except Exception as e:
             logging.error(f"Answer generation failed: {e}")
             answer = "Failed to generate answer."
-        
+
+        # Detect LLM generation failures - failed answers must not pollute RAGAS averages
+        _LLM_FAILURE_PHRASES = [
+            "I couldn't generate an answer right now",
+            "Failed to generate answer",
+        ]
+        if response.get("llm_failure") or any(p in answer for p in _LLM_FAILURE_PHRASES):
+            evaluation_time = (asyncio.get_event_loop().time() - start_time) * 1000
+            return {
+                "question": question,
+                "answer": answer,
+                "contexts": contexts,
+                "context_count": len(contexts),
+                "ragas_metrics": RAGASMetrics(0.0, 0.0, 0.0, 0.0),
+                "evaluation_time_ms": evaluation_time,
+                "retrieved_sources": len(results),
+                "llm_failure": True,
+                "error": "llm_generation_failure",
+            }
+
         # 3. Evaluate with RAGAS
         ragas_metrics = await self.ragas_evaluator.evaluate_query(question, answer, contexts)
         
@@ -429,7 +449,24 @@ async def run_ragas_evaluation(dataset_path: Path, user_id: str, top_k: int = 5,
         all_results.append(result)
     
     # Aggregate RAGAS scores
-    valid_results = [r for r in all_results if "error" not in r]
+    _LLM_FAILURE_PHRASES = [
+        "I couldn't generate an answer right now",
+        "Failed to generate answer",
+    ]
+    failed_results = [
+        r for r in all_results
+        if r.get("llm_failure") or any(p in r.get("answer", "") for p in _LLM_FAILURE_PHRASES)
+    ]
+    valid_results = [
+        r for r in all_results
+        if "error" not in r and not r.get("llm_failure")
+        and not any(p in r.get("answer", "") for p in _LLM_FAILURE_PHRASES)
+    ]
+    if failed_results:
+        logging.warning(
+            f"{len(failed_results)}/{len(all_results)} queries had LLM generation failures "
+            "and were excluded from RAGAS scores."
+        )
     
     if not valid_results:
         raise ValueError("No valid evaluation results")
