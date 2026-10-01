@@ -77,7 +77,7 @@ class RAGASEvaluator:
     def __init__(self, evaluation_llm_client=None):
         """Initialize RAGAS evaluator with LLM client for evaluation"""
         self.evaluation_llm = evaluation_llm_client or Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.model_name = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Stable Groq model
+        self.model_name = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")  # Best available model on this account
         
         # Initialize heuristic evaluator as fallback
         try:

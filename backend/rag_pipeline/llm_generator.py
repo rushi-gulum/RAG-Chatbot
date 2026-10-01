@@ -38,7 +38,7 @@ class LLMGenerator:
             max_tokens: Maximum tokens in response
             temperature: Response creativity (0.0 = deterministic, 1.0 = creative)
         """
-        self.model_name = model_name or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model_name = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         self.max_tokens = max_tokens
         # Retrieval answers should be stable and grounded rather than creative.
         self.temperature = temperature if temperature is not None else float(
