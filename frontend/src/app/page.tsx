@@ -832,7 +832,56 @@ export default function Home() {
             {busy && <div className="thinking"><LoaderCircle size={17} className="spin" /> Reading your library...</div>}</div>
             <ConversationRail messages={messages} onJump={jumpToMessage} />
             </div>
-            <div className="composer-wrap"><div className="selection-line"><span><Check size={14} /> {selectedDocuments.length ? `${selectedDocuments.length} document${selectedDocuments.length > 1 ? "s" : ""} selected` : "Searching all documents"}</span><button onClick={() => setSelectedDocuments([])}>Clear selection</button></div><div className="composer"><textarea value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submitQuery(); } }} placeholder="Ask a question about your documents..." rows={2} /><div className="composer-tools"><button className="icon-button" aria-label="Attach document" onClick={handleAttachClick}><Paperclip size={18} /></button><span className="composer-hint">Shift + Enter for a new line</span><button className="send-button" aria-label="Send question" onClick={submitQuery} disabled={!query.trim() || busy}><ArrowUp size={18} /></button></div></div></div>
+            <div className="composer-wrap">
+              <div className="composer">
+                {selectedDocuments.length > 0 && (
+                  <div className="composer-selection-bar">
+                    <span className="selection-chip">
+                      <Check size={12} />
+                      <span className="selection-chip-text">
+                        {selectedDocuments.length === 1
+                          ? (documents.find((d) => d.file_id === selectedDocuments[0])?.filename || "1 document selected")
+                          : `${selectedDocuments.length} documents selected`}
+                      </span>
+                      <button
+                        type="button"
+                        className="selection-chip-clear"
+                        onClick={() => setSelectedDocuments([])}
+                        aria-label="Clear document selection"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  </div>
+                )}
+                <textarea
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      submitQuery();
+                    }
+                  }}
+                  placeholder="Ask a question about your documents..."
+                  rows={2}
+                />
+                <div className="composer-tools">
+                  <button className="icon-button" aria-label="Attach document" onClick={handleAttachClick}>
+                    <Paperclip size={18} />
+                  </button>
+                  <span className="composer-hint">Shift + Enter for a new line</span>
+                  <button
+                    className="send-button"
+                    aria-label="Send question"
+                    onClick={submitQuery}
+                    disabled={!query.trim() || busy}
+                  >
+                    <ArrowUp size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
           {libraryOpen && <aside className="library-panel"><div className="library-heading"><div><span className="eyebrow">Knowledge base</span><h3>Your library <span>{documents.length}</span></h3></div><button className="icon-button library-toggle" aria-label="Hide document library" onClick={toggleLibrary}><X size={19} /></button></div>
 
@@ -895,7 +944,7 @@ export default function Home() {
               )}
             </button>
 
-            <div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a document to start asking questions.</span></div>}</div><div className="library-footer"><span><span className="tiny-dot" /> All systems operational</span><span>API · 8000</span></div></aside>}
+            <div className="library-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter documents" /></div><div className="document-list">{filteredDocuments.map((document) => <div className={`document-card ${selectedDocuments.includes(document.file_id) ? "selected" : ""}`} key={document.file_id} onClick={() => toggleDocument(document.file_id)}><div className="pdf-icon"><FileText size={19} /></div><span className="document-copy"><strong>{document.filename}</strong><small>{formatBytes(document.size_bytes)}{document.uploaded_at ? ` · ${new Date(document.uploaded_at * 1000).toLocaleDateString()}` : ""}</small></span><span className="document-check">{selectedDocuments.includes(document.file_id) ? <Check size={15} /> : <span />}</span><button className="delete-document" aria-label={`Delete ${document.filename}`} onClick={(event) => { event.stopPropagation(); deleteDocument(document.file_id); }}><Trash2 size={14} /></button></div>)}{!filteredDocuments.length && <div className="empty-library"><BookOpen size={23} /><strong>Your library is quiet.</strong><span>Add a document to start asking questions.</span></div>}</div></aside>}
         </div>
         {/* Hidden file input - always available for both paperclip and upload zone */}
         <input ref={fileInput} type="file" accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.txt,text/plain" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) uploadDocument(file); event.target.value = ""; }} />
